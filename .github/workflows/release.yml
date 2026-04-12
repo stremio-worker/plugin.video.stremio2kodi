@@ -58,6 +58,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Wait for release to propagate
+        run: |
+          for i in $(seq 1 10); do
+            LATEST=$(curl -s -H "Accept: application/vnd.github.v3+json" \
+              https://api.github.com/repos/${{ github.repository }}/releases/latest | \
+              python3 -c "import sys,json; print(json.load(sys.stdin).get('tag_name',''))")
+            echo "Attempt $i: latest=$LATEST expected=${{ steps.addon.outputs.tag }}"
+            [ "$LATEST" = "${{ steps.addon.outputs.tag }}" ] && exit 0
+            sleep 3
+          done
+          echo "::warning::Release not yet propagated after 30s, dispatching anyway"
+
       - name: Trigger repository update
         run: |
           curl -X POST \
