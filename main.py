@@ -39,7 +39,6 @@ stremio = StremioClient(
 )
 _monitor = xbmc.Monitor()
 
-# Pre-compiled regexes (avoid re-compiling on every call)
 _RE_DURATION = re.compile(r'(?:(\d+)\s*h)?\s*(?:(\d+)\s*min)?')
 _RE_QUALITY = re.compile(
     r'(8[Kk]|2160p|4[Kk]|1080p|720p|480p|DVDRip|BDRip|WEBRip|WEB-DL|HDTV)',
@@ -130,10 +129,6 @@ _PREF_QUALITY_MAP = (
 _MAX_WORKERS = ADDON.getSettingInt('max_workers') or 4
 
 
-# ---------------------------------------------------------------------------
-#  Helpers
-# ---------------------------------------------------------------------------
-
 # Stremio type → localized string ID
 _TYPE_LABELS = {
     'movie': 30115,
@@ -195,7 +190,7 @@ def _quality_summary(streams):
                      for q in _QUALITY_ORDER if q in counts)
 
 
-# Stremio meta → Kodi meta field mapping (module-level, allocated once)
+# Stremio meta → Kodi meta field mapping
 _META_FIELD_MAP = (
     ('title', 'name'),
     ('plot', 'description'),
@@ -338,7 +333,6 @@ def _get_catalog_cached(base_url, type_, catalog_id, extra=None):
 
 
 def add_dir(label, action, is_folder=True, art=None, info=None, **params):
-    """Convenience wrapper for addDirectoryItem."""
     li = xbmcgui.ListItem(label)
     if art:
         li.setArt(art)
@@ -348,10 +342,6 @@ def add_dir(label, action, is_folder=True, art=None, info=None, **params):
     xbmcplugin.addDirectoryItem(HANDLE, url, li, isFolder=is_folder)
     return li
 
-
-# ---------------------------------------------------------------------------
-#  Main menu
-# ---------------------------------------------------------------------------
 
 def main_menu():
     add_dir(L(30000), 'catalogs',
@@ -363,10 +353,6 @@ def main_menu():
             art={'icon': 'DefaultAddonService.png'})
     xbmcplugin.endOfDirectory(HANDLE)
 
-
-# ---------------------------------------------------------------------------
-#  Catalog browsing
-# ---------------------------------------------------------------------------
 
 def catalogs_menu():
     """List Stremio add-ons that expose catalogs."""
@@ -618,10 +604,6 @@ def _add_meta_item(meta, fallback_type, addon_idx):
         xbmcplugin.addDirectoryItem(HANDLE, url, li, isFolder=False)
 
 
-# ---------------------------------------------------------------------------
-#  Series  →  seasons  →  episodes
-# ---------------------------------------------------------------------------
-
 def show_seasons(addon_idx, meta_type, meta_id):
     """Show the seasons of a series as a directory listing."""
     videos = _fetch_videos(addon_idx, meta_type, meta_id)
@@ -697,10 +679,6 @@ def _fetch_videos(preferred_idx, meta_type, meta_id):
             return result['meta']['videos']
     return None
 
-
-# ---------------------------------------------------------------------------
-#  Playback  (streams)
-# ---------------------------------------------------------------------------
 
 def play_movie(imdb_id, stream_type='movie', addon_idx=None, meta_info=None):
     # For non-IMDB IDs, try fetching meta with embedded streams first
@@ -902,7 +880,6 @@ def _stream_sort_key(stream):
     """Sort key built from user settings: sort_order, preferred_lang, preferred_quality."""
     text = '{}\n{}'.format(stream.get('name', ''), stream.get('title', ''))
 
-    # --- Preferred language from settings (enum index) or Kodi ---
     lang_idx = ADDON.getSettingInt('preferred_lang')
     pref_lang = (_PREF_LANG_MAP[lang_idx]
                  if lang_idx < len(_PREF_LANG_MAP) else None) or _KODI_LANG
@@ -921,7 +898,6 @@ def _stream_sort_key(stream):
     else:
         lang_rank = 2
 
-    # --- Quality rank ---
     q_m = _RE_QUALITY.search(text)
     if q_m:
         q = q_m.group(1).lower()
@@ -933,7 +909,6 @@ def _stream_sort_key(stream):
     else:
         quality_rank = _QUALITY_RANK.get('other', len(_QUALITY_ORDER))
 
-    # --- Preferred quality: boost matching streams ---
     q_idx = ADDON.getSettingInt('preferred_quality')
     pref_q = (_PREF_QUALITY_MAP[q_idx]
               if q_idx < len(_PREF_QUALITY_MAP) else None)
@@ -974,7 +949,6 @@ def _stream_sort_key(stream):
     if quality_rank == _QUALITY_RANK.get('other', len(_QUALITY_ORDER)) and hdr_rank <= 1:
         quality_rank = _QUALITY_RANK.get('2160p', quality_rank)
 
-    # --- Remux rank: remux (0) > non-remux (1) ---
     remux_rank = 0 if _RE_REMUX.search(text) else 1
 
     # --- Size: bigger first (negative for descending) ---
@@ -990,7 +964,6 @@ def _stream_sort_key(stream):
     else:
         size_rank = 0
 
-    # --- Build sort tuple from user's chosen order (enum index) ---
     sort_idx = ADDON.getSettingInt('sort_order')
     if sort_idx == 1:    # Quality, Language, Size
         return (quality_pref, quality_rank, hdr_rank, remux_rank, lang_rank, size_rank)
@@ -1074,7 +1047,6 @@ def _parse_stream_details(stream):
 
     details = {}
 
-    # --- Resolution ---
     q_m = _RE_QUALITY.search(text)
     if q_m:
         q = q_m.group(1).lower()
@@ -1103,7 +1075,6 @@ def _parse_stream_details(stream):
             tag = 'SDR'
         if tag not in hdr_tags:
             hdr_tags.append(tag)
-    # --- IMAX ---
     if _RE_IMAX.search(text):
         if 'IMAX' not in hdr_tags:
             hdr_tags.append('IMAX')
@@ -1117,42 +1088,35 @@ def _parse_stream_details(stream):
             details['quality'] = '4K'
             details['width'], details['height'] = 3840, 2160
 
-    # --- Remux ---
     if _RE_REMUX.search(text):
         details['remux'] = True
 
-    # --- Video codec ---
     vc_m = _RE_VIDEO_CODEC.search(text)
     if vc_m:
         details['vcodec'] = _VIDEO_CODEC_NORM.get(
             vc_m.group(1).lower().replace('.', '').replace('-', ''),
             vc_m.group(1).upper())
 
-    # --- Audio codec ---
     ac_m = _RE_AUDIO_CODEC.search(text)
     if ac_m:
         raw = ac_m.group(1).lower().replace(' ', '').replace('-', '')
         details['acodec'] = _AUDIO_CODEC_NORM.get(raw, ac_m.group(1).upper())
 
-    # --- Audio channels ---
     ch_m = _RE_AUDIO_CHANNELS.search(text)
     if ch_m:
         details['channels'] = int(ch_m.group(1)) + int(ch_m.group(2))
 
-    # --- Languages from flags ---
     langs = []
     for flag_m in _RE_LANG_FLAG.finditer(text):
         lang = _FLAG_TO_LANG.get(flag_m.group())
         if lang and lang not in langs:
             langs.append(lang)
-    # Also check text-based language keywords
     for lang_code, pattern in _LANG_KEYWORDS.items():
         if pattern.search(text) and lang_code not in langs:
             langs.append(lang_code)
     if langs:
         details['languages'] = langs
 
-    # --- File size in bytes ---
     size_m = _RE_SIZE.search(text)
     if size_m:
         size_val = float(size_m.group(1))
@@ -1438,10 +1402,6 @@ def _search_streams(stream_type, stream_id, addon_idx=None):
     return all_streams
 
 
-# ---------------------------------------------------------------------------
-#  Add-on management
-# ---------------------------------------------------------------------------
-
 def manage_menu():
     """UI to add / remove Stremio add-ons."""
     li = xbmcgui.ListItem(L(30050))
@@ -1579,10 +1539,6 @@ def addon_info_dialog(idx):
     elif choice == 1:
         remove_addon(idx)
 
-
-# ---------------------------------------------------------------------------
-#  Router
-# ---------------------------------------------------------------------------
 
 def route():
     query = sys.argv[2].lstrip('?') if len(sys.argv) > 2 else ''
