@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<addon id="plugin.video.stremio2kodi"
+       name="Stremio2Kodi"
+       version="1.0.1"
+       provider-name="StremioToCode">
+    <requires>
+        <import addon="xbmc.python" version="3.0.0"/>
+    </requires>
+    <extension point="xbmc.python.pluginsource" library="main.py">
+        <provides>video</provides>
+    </extension>
+    <extension point="xbmc.addon.metadata">
+        <platform>all</platform>
+        <summary lang="en_GB">Stremio add-ons wrapper for Kodi</summary>
+        <summary lang="es_ES">Envoltorio de add-ons de Stremio para Kodi</summary>
+        <description lang="en_GB">Browse and stream content from Stremio add-ons within Kodi. Supports catalogs, streams, and integrates with TMDbHelper for metadata and search.</description>
+        <description lang="es_ES">Explora y reproduce contenido de add-ons de Stremio dentro de Kodi. Soporta catálogos, streams e integración con TMDbHelper para metadatos y búsqueda.</description>
+        <license>GPL-3.0-only</license>
+    </extension>
+</addon>

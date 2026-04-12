@@ -1,0 +1,64 @@
+name: Release Kodi Addon
+
+on:
+  push:
+    branches: [main, dev]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract addon info
+        id: addon
+        run: |
+          ADDON_ID=$(grep -oP 'id="\K[^"]+' addon.xml | head -1)
+          VERSION=$(grep -oP 'version="\K[^"]+' addon.xml | head -1)
+          BRANCH="${GITHUB_REF##*/}"
+          if [ "$BRANCH" = "dev" ]; then
+            TAG="v${VERSION}-dev"
+            ZIP_NAME="${ADDON_ID}-${VERSION}-dev.zip"
+            IS_PRE="true"
+          else
+            TAG="v${VERSION}"
+            ZIP_NAME="${ADDON_ID}-${VERSION}.zip"
+            IS_PRE="false"
+          fi
+          echo "addon_id=$ADDON_ID" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          echo "is_pre=$IS_PRE" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Build addon zip
+        run: |
+          mkdir -p build/${{ steps.addon.outputs.addon_id }}
+          rsync -av --exclude='.git' --exclude='.github' --exclude='__pycache__' --exclude='*.pyc' --exclude='build' ./ build/${{ steps.addon.outputs.addon_id }}/
+          cd build
+          zip -r "../${{ steps.addon.outputs.zip_name }}" "${{ steps.addon.outputs.addon_id }}"
+
+      - name: Delete existing release if same tag
+        run: |
+          gh release delete "${{ steps.addon.outputs.tag }}" --yes --cleanup-tag 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        run: |
+          gh release create "${{ steps.addon.outputs.tag }}" \
+            "${{ steps.addon.outputs.zip_name }}" \
+            --title "${{ steps.addon.outputs.addon_id }} ${{ steps.addon.outputs.version }}${{ steps.addon.outputs.branch == 'dev' && ' (dev)' || '' }}" \
+            --notes "Automated release from ${{ steps.addon.outputs.branch }} branch" \
+            ${{ steps.addon.outputs.is_pre == 'true' && '--prerelease' || '--latest' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger repository update
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.REPO_DISPATCH_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/VSeryi/repository.vseryi4kodi/dispatches \
+            -d '{"event_type":"addon_updated","client_payload":{"addon":"${{ steps.addon.outputs.addon_id }}","version":"${{ steps.addon.outputs.version }}","branch":"${{ steps.addon.outputs.branch }}"}}'

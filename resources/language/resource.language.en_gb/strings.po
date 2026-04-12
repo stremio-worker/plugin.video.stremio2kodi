@@ -1,0 +1,301 @@
+# Stremio2Kodi English language file
+msgid ""
+msgstr ""
+"Language: en\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+# -- Main menu --
+msgctxt "#30000"
+msgid "Browse Catalogs"
+msgstr ""
+
+msgctxt "#30001"
+msgid "Manage Stremio Add-ons"
+msgstr ""
+
+msgctxt "#30002"
+msgid "Install TMDbHelper Player"
+msgstr ""
+
+# -- Catalog browsing --
+msgctxt "#30010"
+msgid "No Stremio add-ons configured"
+msgstr ""
+
+msgctxt "#30011"
+msgid "No catalogs available"
+msgstr ""
+
+msgctxt "#30012"
+msgid "Browse All"
+msgstr ""
+
+msgctxt "#30013"
+msgid "Browse Filtered"
+msgstr ""
+
+msgctxt "#30014"
+msgid "Next Page >>"
+msgstr ""
+
+# -- Series --
+msgctxt "#30020"
+msgid "Season {}"
+msgstr ""
+
+msgctxt "#30021"
+msgid "Episode {}"
+msgstr ""
+
+msgctxt "#30022"
+msgid "No episode info found"
+msgstr ""
+
+msgctxt "#30023"
+msgid "Specials"
+msgstr ""
+
+msgctxt "#30024"
+msgid "Select Season"
+msgstr ""
+
+# -- Playback / Streams --
+msgctxt "#30030"
+msgid "Select Stream"
+msgstr ""
+
+msgctxt "#30031"
+msgid "No streams found"
+msgstr ""
+
+msgctxt "#30032"
+msgid "No addons support streams"
+msgstr ""
+
+msgctxt "#30033"
+msgid "Unsupported stream type"
+msgstr ""
+
+msgctxt "#30034"
+msgid "Fetching item info..."
+msgstr ""
+
+msgctxt "#30035"
+msgid "Checking addons..."
+msgstr ""
+
+msgctxt "#30036"
+msgid "Searching streams..."
+msgstr ""
+
+msgctxt "#30037"
+msgid "No stream addons yet"
+msgstr ""
+
+msgctxt "#30038"
+msgid "Found: {}"
+msgstr ""
+
+msgctxt "#30039"
+msgid "Waiting: {}"
+msgstr ""
+
+msgctxt "#30040"
+msgid "Found {} stream{} - Searching..."
+msgstr ""
+
+msgctxt "#30041"
+msgid "Found {} stream{}"
+msgstr ""
+
+# -- Add-on management --
+msgctxt "#30050"
+msgid "[B]+ Add Stremio Add-on[/B]"
+msgstr ""
+
+msgctxt "#30051"
+msgid "Enter Stremio Add-on URL"
+msgstr ""
+
+msgctxt "#30052"
+msgid "Validating add-on..."
+msgstr ""
+
+msgctxt "#30053"
+msgid "Failed to fetch manifest - check the URL"
+msgstr ""
+
+msgctxt "#30054"
+msgid "Add this add-on?"
+msgstr ""
+
+msgctxt "#30055"
+msgid "{} added"
+msgstr ""
+
+msgctxt "#30056"
+msgid "Add-on already exists"
+msgstr ""
+
+msgctxt "#30057"
+msgid "Remove {}?"
+msgstr ""
+
+msgctxt "#30058"
+msgid "{} removed"
+msgstr ""
+
+msgctxt "#30059"
+msgid "View Info"
+msgstr ""
+
+msgctxt "#30060"
+msgid "Remove Add-on"
+msgstr ""
+
+msgctxt "#30061"
+msgid "Remove"
+msgstr ""
+
+# -- Player setup --
+msgctxt "#30070"
+msgid "TMDbHelper player installed!"
+msgstr ""
+
+msgctxt "#30071"
+msgid "Failed to install player file"
+msgstr ""
+
+# -- Settings labels --
+msgctxt "#30080"
+msgid "General"
+msgstr ""
+
+msgctxt "#30081"
+msgid "Request timeout (seconds)"
+msgstr ""
+
+msgctxt "#30082"
+msgid "Auto-play best stream"
+msgstr ""
+
+msgctxt "#30083"
+msgid "Max concurrent searches"
+msgstr ""
+
+# -- Sorting settings --
+msgctxt "#30090"
+msgid "Sorting"
+msgstr ""
+
+msgctxt "#30091"
+msgid "Sort streams by"
+msgstr ""
+
+msgctxt "#30092"
+msgid "Language, Quality, Size"
+msgstr ""
+
+msgctxt "#30093"
+msgid "Quality, Language, Size"
+msgstr ""
+
+msgctxt "#30094"
+msgid "Size, Quality, Language"
+msgstr ""
+
+msgctxt "#30095"
+msgid "Preferred language"
+msgstr ""
+
+msgctxt "#30096"
+msgid "Auto (Kodi language)"
+msgstr ""
+
+msgctxt "#30097"
+msgid "Preferred quality"
+msgstr ""
+
+msgctxt "#30098"
+msgid "Best available"
+msgstr ""
+
+# -- Language names (enum values) --
+msgctxt "#30100"
+msgid "English"
+msgstr ""
+
+msgctxt "#30101"
+msgid "Español"
+msgstr ""
+
+msgctxt "#30102"
+msgid "Français"
+msgstr ""
+
+msgctxt "#30103"
+msgid "Deutsch"
+msgstr ""
+
+msgctxt "#30104"
+msgid "Italiano"
+msgstr ""
+
+msgctxt "#30105"
+msgid "Português"
+msgstr ""
+
+msgctxt "#30106"
+msgid "Русский"
+msgstr ""
+
+msgctxt "#30107"
+msgid "日本語"
+msgstr ""
+
+msgctxt "#30108"
+msgid "한국어"
+msgstr ""
+
+msgctxt "#30109"
+msgid "中文"
+msgstr ""
+
+# -- Quality values (enum values) --
+msgctxt "#30110"
+msgid "4K / 2160p"
+msgstr ""
+
+msgctxt "#30111"
+msgid "1080p"
+msgstr ""
+
+msgctxt "#30112"
+msgid "720p"
+msgstr ""
+
+# -- Settings group labels --
+msgctxt "#30113"
+msgid "Basic"
+msgstr ""
+
+msgctxt "#30114"
+msgid "Advanced"
+msgstr ""
+
+# -- Type labels --
+msgctxt "#30115"
+msgid "Movies"
+msgstr "Movies"
+
+msgctxt "#30116"
+msgid "Series"
+msgstr "Series"
+
+msgctxt "#30117"
+msgid "Channels"
+msgstr "Channels"
+
+msgctxt "#30118"
+msgid "TV"
+msgstr "TV"

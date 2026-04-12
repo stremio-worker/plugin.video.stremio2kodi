@@ -1,0 +1,301 @@
+# Stremio2Kodi Spanish language file
+msgid ""
+msgstr ""
+"Language: es\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+# -- Menú principal --
+msgctxt "#30000"
+msgid "Browse Catalogs"
+msgstr "Explorar Catálogos"
+
+msgctxt "#30001"
+msgid "Manage Stremio Add-ons"
+msgstr "Gestionar Add-ons de Stremio"
+
+msgctxt "#30002"
+msgid "Install TMDbHelper Player"
+msgstr "Instalar Reproductor TMDbHelper"
+
+# -- Exploración de catálogos --
+msgctxt "#30010"
+msgid "No Stremio add-ons configured"
+msgstr "No hay add-ons de Stremio configurados"
+
+msgctxt "#30011"
+msgid "No catalogs available"
+msgstr "No hay catálogos disponibles"
+
+msgctxt "#30012"
+msgid "Browse All"
+msgstr "Ver Todo"
+
+msgctxt "#30013"
+msgid "Browse Filtered"
+msgstr "Ver Filtrado"
+
+msgctxt "#30014"
+msgid "Next Page >>"
+msgstr "Siguiente Página >>"
+
+# -- Series --
+msgctxt "#30020"
+msgid "Season {}"
+msgstr "Temporada {}"
+
+msgctxt "#30021"
+msgid "Episode {}"
+msgstr "Episodio {}"
+
+msgctxt "#30022"
+msgid "No episode info found"
+msgstr "No se encontró información del episodio"
+
+msgctxt "#30023"
+msgid "Specials"
+msgstr "Especiales"
+
+msgctxt "#30024"
+msgid "Select Season"
+msgstr "Seleccionar Temporada"
+
+# -- Reproducción / Streams --
+msgctxt "#30030"
+msgid "Select Stream"
+msgstr "Seleccionar Stream"
+
+msgctxt "#30031"
+msgid "No streams found"
+msgstr "No se encontraron streams"
+
+msgctxt "#30032"
+msgid "No addons support streams"
+msgstr "Ningún addon soporta streams"
+
+msgctxt "#30033"
+msgid "Unsupported stream type"
+msgstr "Tipo de stream no soportado"
+
+msgctxt "#30034"
+msgid "Fetching item info..."
+msgstr "Obteniendo información..."
+
+msgctxt "#30035"
+msgid "Checking addons..."
+msgstr "Comprobando addons..."
+
+msgctxt "#30036"
+msgid "Searching streams..."
+msgstr "Buscando streams..."
+
+msgctxt "#30037"
+msgid "No stream addons yet"
+msgstr "Aún no hay addons de streams"
+
+msgctxt "#30038"
+msgid "Found: {}"
+msgstr "Encontrados: {}"
+
+msgctxt "#30039"
+msgid "Waiting: {}"
+msgstr "Esperando: {}"
+
+msgctxt "#30040"
+msgid "Found {} stream{} - Searching..."
+msgstr "{} stream{} encontrados - Buscando..."
+
+msgctxt "#30041"
+msgid "Found {} stream{}"
+msgstr "{} stream{} encontrados"
+
+# -- Gestión de add-ons --
+msgctxt "#30050"
+msgid "[B]+ Add Stremio Add-on[/B]"
+msgstr "[B]+ Añadir Add-on de Stremio[/B]"
+
+msgctxt "#30051"
+msgid "Enter Stremio Add-on URL"
+msgstr "Introduce la URL del Add-on de Stremio"
+
+msgctxt "#30052"
+msgid "Validating add-on..."
+msgstr "Validando add-on..."
+
+msgctxt "#30053"
+msgid "Failed to fetch manifest - check the URL"
+msgstr "Error al obtener el manifiesto - revisa la URL"
+
+msgctxt "#30054"
+msgid "Add this add-on?"
+msgstr "¿Añadir este add-on?"
+
+msgctxt "#30055"
+msgid "{} added"
+msgstr "{} añadido"
+
+msgctxt "#30056"
+msgid "Add-on already exists"
+msgstr "El add-on ya existe"
+
+msgctxt "#30057"
+msgid "Remove {}?"
+msgstr "¿Eliminar {}?"
+
+msgctxt "#30058"
+msgid "{} removed"
+msgstr "{} eliminado"
+
+msgctxt "#30059"
+msgid "View Info"
+msgstr "Ver Información"
+
+msgctxt "#30060"
+msgid "Remove Add-on"
+msgstr "Eliminar Add-on"
+
+msgctxt "#30061"
+msgid "Remove"
+msgstr "Eliminar"
+
+# -- Configuración del reproductor --
+msgctxt "#30070"
+msgid "TMDbHelper player installed!"
+msgstr "¡Reproductor TMDbHelper instalado!"
+
+msgctxt "#30071"
+msgid "Failed to install player file"
+msgstr "Error al instalar el archivo del reproductor"
+
+# -- Etiquetas de ajustes --
+msgctxt "#30080"
+msgid "General"
+msgstr "General"
+
+msgctxt "#30081"
+msgid "Request timeout (seconds)"
+msgstr "Tiempo de espera (segundos)"
+
+msgctxt "#30082"
+msgid "Auto-play best stream"
+msgstr "Reproducir automáticamente el mejor stream"
+
+msgctxt "#30083"
+msgid "Max concurrent searches"
+msgstr "Búsquedas simultáneas máximas"
+
+# -- Ajustes de ordenación --
+msgctxt "#30090"
+msgid "Sorting"
+msgstr "Ordenación"
+
+msgctxt "#30091"
+msgid "Sort streams by"
+msgstr "Ordenar streams por"
+
+msgctxt "#30092"
+msgid "Language, Quality, Size"
+msgstr "Idioma, Calidad, Tamaño"
+
+msgctxt "#30093"
+msgid "Quality, Language, Size"
+msgstr "Calidad, Idioma, Tamaño"
+
+msgctxt "#30094"
+msgid "Size, Quality, Language"
+msgstr "Tamaño, Calidad, Idioma"
+
+msgctxt "#30095"
+msgid "Preferred language"
+msgstr "Idioma preferido"
+
+msgctxt "#30096"
+msgid "Auto (Kodi language)"
+msgstr "Auto (idioma de Kodi)"
+
+msgctxt "#30097"
+msgid "Preferred quality"
+msgstr "Calidad preferida"
+
+msgctxt "#30098"
+msgid "Best available"
+msgstr "La mejor disponible"
+
+# -- Nombres de idiomas (valores de enum) --
+msgctxt "#30100"
+msgid "English"
+msgstr "English"
+
+msgctxt "#30101"
+msgid "Español"
+msgstr "Español"
+
+msgctxt "#30102"
+msgid "Français"
+msgstr "Français"
+
+msgctxt "#30103"
+msgid "Deutsch"
+msgstr "Deutsch"
+
+msgctxt "#30104"
+msgid "Italiano"
+msgstr "Italiano"
+
+msgctxt "#30105"
+msgid "Português"
+msgstr "Português"
+
+msgctxt "#30106"
+msgid "Русский"
+msgstr "Русский"
+
+msgctxt "#30107"
+msgid "日本語"
+msgstr "日本語"
+
+msgctxt "#30108"
+msgid "한국어"
+msgstr "한국어"
+
+msgctxt "#30109"
+msgid "中文"
+msgstr "中文"
+
+# -- Valores de calidad (valores de enum) --
+msgctxt "#30110"
+msgid "4K / 2160p"
+msgstr "4K / 2160p"
+
+msgctxt "#30111"
+msgid "1080p"
+msgstr "1080p"
+
+msgctxt "#30112"
+msgid "720p"
+msgstr "720p"
+
+# -- Etiquetas de grupo --
+msgctxt "#30113"
+msgid "Basic"
+msgstr "Básico"
+
+msgctxt "#30114"
+msgid "Advanced"
+msgstr "Avanzado"
+
+# -- Etiquetas de tipo --
+msgctxt "#30115"
+msgid "Movies"
+msgstr "Películas"
+
+msgctxt "#30116"
+msgid "Series"
+msgstr "Series"
+
+msgctxt "#30117"
+msgid "Channels"
+msgstr "Canales"
+
+msgctxt "#30118"
+msgid "TV"
+msgstr "TV"

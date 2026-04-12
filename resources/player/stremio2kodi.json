@@ -1,0 +1,20 @@
+{
+    "name": "Stremio2Kodi",
+    "plugin": "plugin.video.stremio2kodi",
+    "priority": 200,
+    "is_resolvable": "true",
+    "is_default": "true",
+    "make_playlist": "true",
+    "assert": {
+        "play_movie": ["imdb"],
+        "play_episode": ["imdb"]
+    },
+    "play_movie": [
+        "plugin://plugin.video.stremio2kodi/?action=list_streams&type=movie&imdb_id={imdb}",
+        {"dialog": "True"}
+    ],
+    "play_episode": [
+        "plugin://plugin.video.stremio2kodi/?action=list_streams&type=series&imdb_id={imdb}&season={season}&episode={episode}",
+        {"dialog": "True"}
+    ]
+}
