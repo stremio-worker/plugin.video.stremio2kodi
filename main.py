@@ -858,13 +858,27 @@ def _pick_meta_addon(addons):
 
 def select_meta_addon():
     """Action to let user pick which Stremio addon to use for metadata."""
-    ADDON.setSetting('meta_addon_url', '')
     addons = addon_mgr.get_addons()
-    url = _pick_meta_addon(addons)
-    if url:
+    meta_addons = _get_meta_addons(addons)
+    if not meta_addons:
         xbmcgui.Dialog().notification(
-            ADDON_NAME, L(30124),
-            xbmcgui.NOTIFICATION_INFO)
+            ADDON_NAME, L(30123),
+            xbmcgui.NOTIFICATION_WARNING)
+        return
+    saved = ADDON.getSetting('meta_addon_url')
+    preselect = -1
+    names = []
+    for i, (_, url, name) in enumerate(meta_addons):
+        names.append(name)
+        if url == saved:
+            preselect = i
+    idx = xbmcgui.Dialog().select(L(30123), names, preselect=preselect)
+    if idx < 0:
+        return
+    ADDON.setSetting('meta_addon_url', meta_addons[idx][1])
+    xbmcgui.Dialog().notification(
+        ADDON_NAME, L(30124),
+        xbmcgui.NOTIFICATION_INFO)
 
 
 def _enrich_catalog_stremio(metas, cat_type, addons):
