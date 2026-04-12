@@ -16,8 +16,8 @@ jobs:
       - name: Extract addon info
         id: addon
         run: |
-          ADDON_ID=$(grep -oP '<addon\s[^>]*id="\K[^"]+' addon.xml | head -1)
-          VERSION=$(grep -oP '<addon\s[^>]*version="\K[^"]+' addon.xml | head -1)
+          ADDON_ID=$(python3 -c "import xml.etree.ElementTree as ET; print(ET.parse('addon.xml').getroot().get('id'))")
+          VERSION=$(python3 -c "import xml.etree.ElementTree as ET; print(ET.parse('addon.xml').getroot().get('version'))")
           BRANCH="${GITHUB_REF##*/}"
           if [ "$BRANCH" = "dev" ]; then
             TAG="v${VERSION}-dev"
