@@ -6,6 +6,7 @@ import os
 import time
 import traceback
 import urllib.parse
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
 
 import xbmc
@@ -127,6 +128,32 @@ _PREF_QUALITY_MAP = (
 
 # Max parallel workers – keep low for constrained devices (TVs, SBCs)
 _MAX_WORKERS = ADDON.getSettingInt('max_workers') or 4
+_AUTO_PLAY = ADDON.getSettingBool('auto_play')
+_ENRICH_MODE = ADDON.getSettingInt('enrich_metadata')
+_SORT_ORDER = ADDON.getSettingInt('sort_order')
+_PREF_LANG_IDX = ADDON.getSettingInt('preferred_lang')
+_PREF_QUALITY_IDX = ADDON.getSettingInt('preferred_quality')
+_PREF_LANG = (_PREF_LANG_MAP[_PREF_LANG_IDX]
+              if _PREF_LANG_IDX < len(_PREF_LANG_MAP) else None) or _KODI_LANG
+_PREF_QUALITY = (_PREF_QUALITY_MAP[_PREF_QUALITY_IDX]
+                 if _PREF_QUALITY_IDX < len(_PREF_QUALITY_MAP) else None)
+_HDR_RANK = {'DV': 0, 'IMAX': 1, 'HDR10+': 2, 'HDR10': 3, 'HDR': 4, 'SDR': 5}
+
+_TMDB_GENRES = {
+    28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy',
+    80: 'Crime', 99: 'Documentary', 18: 'Drama', 10751: 'Family',
+    14: 'Fantasy', 36: 'History', 27: 'Horror', 10402: 'Music',
+    9648: 'Mystery', 10749: 'Romance', 878: 'Sci-Fi', 10770: 'TV Movie',
+    53: 'Thriller', 10752: 'War', 37: 'Western',
+    10759: 'Action & Adventure', 10762: 'Kids', 10763: 'News',
+    10764: 'Reality', 10765: 'Sci-Fi & Fantasy', 10766: 'Soap',
+    10767: 'Talk', 10768: 'War & Politics',
+}
+
+
+def _normalize_quality_key(raw):
+    q = raw.lower()
+    return '2160p' if q == '4k' else q
 
 
 # Stremio type → localized string ID
@@ -175,17 +202,9 @@ def _quality_summary(streams):
     """Build a short quality summary like '2160p×2  1080p×5  720p×1'."""
     counts = {}
     for s in streams:
-        text = '{} {}'.format(s.get('name', ''), s.get('title', ''))
-        m = _RE_QUALITY.search(text)
-        if m:
-            q = m.group(1).lower()
-            if q in ('4k',):
-                q = '2160p'
-            elif q in ('8k',):
-                q = '8k'
-            counts[q] = counts.get(q, 0) + 1
-        else:
-            counts['other'] = counts.get('other', 0) + 1
+        sd = _parse_stream_details(s)
+        q = sd.get('_quality_key', 'other')
+        counts[q] = counts.get(q, 0) + 1
     return '  '.join('{}×{}'.format(q, counts[q])
                      for q in _QUALITY_ORDER if q in counts)
 
@@ -527,6 +546,12 @@ def catalog_browse(idx, cat_type, cat_id, skip=None,
         return
 
     metas = catalog.get('metas', [])
+
+    if _ENRICH_MODE == 1:
+        _enrich_catalog_stremio(metas, cat_type, addons)
+    elif _ENRICH_MODE == 2:
+        _enrich_catalog_tmdb(metas, cat_type)
+
     for meta in metas:
         _add_meta_item(meta, cat_type, idx)
 
@@ -733,7 +758,7 @@ def _play_from_meta(meta_type, meta_id, addon_idx, meta_info=None):
     if selected < 0:
         return True  # User cancelled, but we handled it
 
-    if ADDON.getSettingBool('auto_play'):
+    if _AUTO_PLAY:
         for i in range(selected, len(all_streams)):
             if _try_play(all_streams[i], meta_info=meta_info):
                 return True
@@ -775,15 +800,213 @@ def _build_stream_listitem(stream):
 def _pick_stream(streams):
     """Auto-play best stream or show selection dialog. Returns index or -1."""
     streams.sort(key=_stream_sort_key)
-    if ADDON.getSettingBool('auto_play'):
+    if _AUTO_PLAY:
         return 0
     items = [_build_stream_listitem(s) for s in streams]
     return xbmcgui.Dialog().select(L(30030), items, useDetails=True)
 
 
+def _items_needing_enrichment(metas):
+    """Return list of (meta, imdb_id) for metas missing description or background."""
+    items = []
+    for meta in metas:
+        raw_id = meta.get('imdb_id') or meta.get('id', '')
+        if not raw_id.startswith('tt'):
+            continue
+        if meta.get('description') and meta.get('background'):
+            continue
+        items.append((meta, raw_id))
+    return items
+
+
+def _get_meta_addons(addons):
+    """Return list of (index, url, name) for addons that expose a meta resource."""
+    result = []
+    for i, addon_info in enumerate(addons):
+        manifest = _get_manifest(addon_info['url'])
+        if manifest and stremio.has_resource(manifest, 'meta'):
+            result.append((i, addon_info['url'],
+                           manifest.get('name', addon_info.get('name', addon_info['url']))))
+    return result
+
+
+def _pick_meta_addon(addons):
+    """Return URL of user-chosen meta addon, or None. Caches choice in settings."""
+    saved = ADDON.getSetting('meta_addon_url')
+    if saved:
+        for addon_info in addons:
+            if addon_info['url'] == saved:
+                manifest = _get_manifest(addon_info['url'])
+                if manifest and stremio.has_resource(manifest, 'meta'):
+                    return saved
+        ADDON.setSetting('meta_addon_url', '')
+
+    meta_addons = _get_meta_addons(addons)
+    if not meta_addons:
+        return None
+    if len(meta_addons) == 1:
+        ADDON.setSetting('meta_addon_url', meta_addons[0][1])
+        return meta_addons[0][1]
+
+    names = [name for _, _, name in meta_addons]
+    idx = xbmcgui.Dialog().select(L(30123), names)
+    if idx < 0:
+        return None
+    ADDON.setSetting('meta_addon_url', meta_addons[idx][1])
+    return meta_addons[idx][1]
+
+
+def select_meta_addon():
+    """Action to let user pick which Stremio addon to use for metadata."""
+    ADDON.setSetting('meta_addon_url', '')
+    addons = addon_mgr.get_addons()
+    url = _pick_meta_addon(addons)
+    if url:
+        xbmcgui.Dialog().notification(
+            ADDON_NAME, L(30124),
+            xbmcgui.NOTIFICATION_INFO)
+
+
+def _enrich_catalog_stremio(metas, cat_type, addons):
+    """Enrich catalog metas missing plot/background from user-chosen meta addon."""
+    meta_url = _pick_meta_addon(addons)
+    if not meta_url:
+        return
+
+    needs = _items_needing_enrichment(metas)
+    if not needs:
+        return
+
+    workers = min(_MAX_WORKERS, len(needs))
+
+    def _fetch_meta(item_id):
+        return _get_meta_cached(meta_url, cat_type, item_id)
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(_fetch_meta, raw_id): meta
+                   for meta, raw_id in needs}
+        for future in as_completed(futures):
+            if _monitor.abortRequested():
+                return
+            catalog_meta = futures[future]
+            try:
+                result = future.result()
+            except Exception:
+                continue
+            if not result or not result.get('meta'):
+                continue
+            rich = result['meta']
+            if not catalog_meta.get('description') and rich.get('description'):
+                catalog_meta['description'] = rich['description']
+            if not catalog_meta.get('background') and rich.get('background'):
+                catalog_meta['background'] = rich['background']
+            if not catalog_meta.get('logo') and rich.get('logo'):
+                catalog_meta['logo'] = rich['logo']
+            if not catalog_meta.get('imdbRating') and rich.get('imdbRating'):
+                catalog_meta['imdbRating'] = rich['imdbRating']
+            if not catalog_meta.get('runtime') and rich.get('runtime'):
+                catalog_meta['runtime'] = rich['runtime']
+
+
+_TMDB_API_BASE = 'https://api.themoviedb.org/3'
+_TMDB_IMG_BASE = 'https://image.tmdb.org/t/p/'
+
+
+def _get_tmdb_api_key():
+    """Read TMDB API key from TMDbHelper settings. Returns None if unavailable."""
+    try:
+        tmdb_addon = xbmcaddon.Addon('plugin.video.themoviedb.helper')
+        return tmdb_addon.getSetting('tmdb_api_key') or None
+    except Exception:
+        return None
+
+
+def _tmdb_find_cached(imdb_id, api_key):
+    """TMDB /find endpoint with caching."""
+    cache_key = 'stremio2kodi.tmdb.{}'.format(imdb_id)
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    url = '{}/find/{}?api_key={}&external_source=imdb_id&language={}'.format(
+        _TMDB_API_BASE, urllib.parse.quote(imdb_id), api_key,
+        _KODI_LANG or 'en')
+    try:
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+        _cache_set(cache_key, data, _META_CACHE_TTL)
+        return data
+    except Exception:
+        return None
+
+
+def _apply_tmdb_to_meta(catalog_meta, tmdb_item):
+    """Merge a TMDB /find result into a catalog meta dict."""
+    if not catalog_meta.get('description') and tmdb_item.get('overview'):
+        catalog_meta['description'] = tmdb_item['overview']
+    if not catalog_meta.get('background') and tmdb_item.get('backdrop_path'):
+        catalog_meta['background'] = '{}w1280{}'.format(
+            _TMDB_IMG_BASE, tmdb_item['backdrop_path'])
+    if not catalog_meta.get('poster') and tmdb_item.get('poster_path'):
+        catalog_meta['poster'] = '{}w500{}'.format(
+            _TMDB_IMG_BASE, tmdb_item['poster_path'])
+    if not catalog_meta.get('imdbRating') and tmdb_item.get('vote_average'):
+        catalog_meta['imdbRating'] = str(round(tmdb_item['vote_average'], 1))
+    if not catalog_meta.get('genres') and tmdb_item.get('genre_ids'):
+        catalog_meta['genres'] = [
+            _TMDB_GENRES[gid] for gid in tmdb_item['genre_ids']
+            if gid in _TMDB_GENRES
+        ]
+
+
+def _enrich_catalog_tmdb(metas, cat_type):
+    """Enrich catalog metas from TMDB API via TMDbHelper's API key."""
+    api_key = _get_tmdb_api_key()
+    if not api_key:
+        xbmc.log('Stremio2Kodi: TMDbHelper not installed or no API key',
+                 xbmc.LOGWARNING)
+        return
+
+    needs = _items_needing_enrichment(metas)
+    if not needs:
+        return
+
+    result_key = 'movie_results' if cat_type == 'movie' else 'tv_results'
+    workers = min(_MAX_WORKERS, len(needs))
+
+    def _fetch(imdb_id):
+        return _tmdb_find_cached(imdb_id, api_key)
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(_fetch, raw_id): meta
+                   for meta, raw_id in needs}
+        for future in as_completed(futures):
+            if _monitor.abortRequested():
+                return
+            catalog_meta = futures[future]
+            try:
+                data = future.result()
+            except Exception:
+                continue
+            if not data:
+                continue
+            results = data.get(result_key) or data.get('movie_results') or []
+            if results:
+                _apply_tmdb_to_meta(catalog_meta, results[0])
+
+
 def _enrich_meta_info(meta_info, stream_type, stream_id, addons):
     """Try to fetch plot/fanart/poster from Stremio meta for IMDB items."""
-    base_id = stream_id.split(':')[0]  # strip :season:episode
+    base_id = stream_id.split(':')[0]
+    saved = ADDON.getSetting('meta_addon_url')
+    if saved:
+        try:
+            result = _get_meta_cached(saved, stream_type, base_id)
+            if result and result.get('meta'):
+                _merge_stremio_meta(meta_info, result['meta'])
+                return
+        except Exception:
+            pass
     for addon_info in addons:
         if _monitor.abortRequested():
             return
@@ -796,7 +1019,7 @@ def _enrich_meta_info(meta_info, stream_type, stream_id, addons):
             continue
         if result and result.get('meta'):
             _merge_stremio_meta(meta_info, result['meta'])
-            break  # Got meta from one addon, that's enough
+            return
 
 
 def _play_streams(stream_type, stream_id, addon_idx=None, meta_info=None):
@@ -820,7 +1043,7 @@ def _play_streams(stream_type, stream_id, addon_idx=None, meta_info=None):
     if selected < 0:
         return
 
-    if ADDON.getSettingBool('auto_play'):
+    if _AUTO_PLAY:
         # Try each stream in sorted order, fall back on failure
         for i in range(selected, len(all_streams)):
             if _try_play(all_streams[i], meta_info=meta_info):
@@ -877,100 +1100,42 @@ def _resolve_and_play(stream, meta_info=None):
 
 
 def _stream_sort_key(stream):
-    """Sort key built from user settings: sort_order, preferred_lang, preferred_quality."""
-    text = '{}\n{}'.format(stream.get('name', ''), stream.get('title', ''))
+    """Sort key from cached parse results and user preferences."""
+    sd = _parse_stream_details(stream)
 
-    lang_idx = ADDON.getSettingInt('preferred_lang')
-    pref_lang = (_PREF_LANG_MAP[lang_idx]
-                 if lang_idx < len(_PREF_LANG_MAP) else None) or _KODI_LANG
+    detected = set(sd.get('languages', []))
+    lang_rank = (0 if _PREF_LANG in detected else 1) if detected else 2
 
-    # --- Language rank: preferred = 0, other known = 1, unknown = 2 ---
-    detected_langs = set()
-    for flag_m in _RE_LANG_FLAG.finditer(text):
-        lang = _FLAG_TO_LANG.get(flag_m.group())
-        if lang:
-            detected_langs.add(lang)
-    for lang_code, pattern in _LANG_KEYWORDS.items():
-        if pattern.search(text):
-            detected_langs.add(lang_code)
-    if detected_langs:
-        lang_rank = 0 if pref_lang in detected_langs else 1
-    else:
-        lang_rank = 2
+    quality_rank = _QUALITY_RANK.get(sd.get('_quality_key', 'other'), len(_QUALITY_ORDER))
 
-    q_m = _RE_QUALITY.search(text)
-    if q_m:
-        q = q_m.group(1).lower()
-        if q in ('4k',):
-            q = '2160p'
-        elif q in ('8k',):
-            q = '8k'
-        quality_rank = _QUALITY_RANK.get(q, len(_QUALITY_ORDER))
-    else:
-        quality_rank = _QUALITY_RANK.get('other', len(_QUALITY_ORDER))
-
-    q_idx = ADDON.getSettingInt('preferred_quality')
-    pref_q = (_PREF_QUALITY_MAP[q_idx]
-              if q_idx < len(_PREF_QUALITY_MAP) else None)
-    if pref_q:
-        pref_q_rank = _QUALITY_RANK.get(pref_q, 0)
-        if quality_rank == pref_q_rank:
-            quality_pref = 0
-        elif quality_rank < pref_q_rank:
-            quality_pref = 1  # better than preferred
-        else:
-            quality_pref = 2  # worse than preferred
-    else:
-        quality_pref = 0  # "Best available" — no preference penalty
-
-    # --- HDR rank: DV best (0), then IMAX (1), HDR10+ (2), HDR10 (3), HDR (4), SDR (5), none (6) ---
-    _HDR_RANK = {'DV': 0, 'IMAX': 1, 'HDR10+': 2, 'HDR10': 3, 'HDR': 4, 'SDR': 5}
-    hdr_rank = 6  # no HDR info
-    for hdr_m in _RE_HDR.finditer(text):
-        if hdr_m.group(1):
-            tag = 'DV'
-        elif hdr_m.group(2):
-            tag = 'HDR10+'
-        elif hdr_m.group(3):
-            tag = 'HDR10'
-        elif hdr_m.group(4):
-            tag = 'HDR'
-        else:
-            tag = 'SDR'
-        r = _HDR_RANK[tag]
-        if r < hdr_rank:
-            hdr_rank = r
-    if _RE_IMAX.search(text):
-        r = _HDR_RANK['IMAX']
+    hdr_rank = 6
+    for tag in sd.get('hdr', []):
+        r = _HDR_RANK.get(tag, 6)
         if r < hdr_rank:
             hdr_rank = r
 
-    # Infer 2160p quality when DV or IMAX present but no explicit resolution
     if quality_rank == _QUALITY_RANK.get('other', len(_QUALITY_ORDER)) and hdr_rank <= 1:
         quality_rank = _QUALITY_RANK.get('2160p', quality_rank)
 
-    remux_rank = 0 if _RE_REMUX.search(text) else 1
-
-    # --- Size: bigger first (negative for descending) ---
-    size_m = _RE_SIZE.search(text)
-    if size_m:
-        size_gb = float(size_m.group(1))
-        unit = size_m.group(2).upper()
-        if unit == 'TB':
-            size_gb *= 1024
-        elif unit == 'MB':
-            size_gb /= 1024
-        size_rank = -size_gb
+    if _PREF_QUALITY:
+        pref_q_rank = _QUALITY_RANK.get(_PREF_QUALITY, 0)
+        if quality_rank == pref_q_rank:
+            quality_pref = 0
+        elif quality_rank < pref_q_rank:
+            quality_pref = 1
+        else:
+            quality_pref = 2
     else:
-        size_rank = 0
+        quality_pref = 0
 
-    sort_idx = ADDON.getSettingInt('sort_order')
-    if sort_idx == 1:    # Quality, Language, Size
+    remux_rank = 0 if sd.get('remux') else 1
+    size_rank = -(sd.get('size', 0) / 1073741824) if sd.get('size') else 0
+
+    if _SORT_ORDER == 1:
         return (quality_pref, quality_rank, hdr_rank, remux_rank, lang_rank, size_rank)
-    elif sort_idx == 2:  # Size, Quality, Language
+    if _SORT_ORDER == 2:
         return (size_rank, quality_pref, quality_rank, hdr_rank, remux_rank, lang_rank)
-    else:                # 0 = Language, Quality, Size (default)
-        return (lang_rank, quality_pref, quality_rank, hdr_rank, remux_rank, size_rank)
+    return (lang_rank, quality_pref, quality_rank, hdr_rank, remux_rank, size_rank)
 
 
 def _stream_label(stream):
@@ -985,9 +1150,6 @@ def _stream_label(stream):
     title_line = title.split('\n')[0].strip() if title else ''
     main = title_line or name_line or 'Unknown Source'
     return main, name_line if title_line else ''
-
-
-_CHANNELS_DISPLAY = {8: '7.1', 7: '7.0', 6: '5.1', 3: '2.1', 2: '2.0', 1: '1.0'}
 
 
 def _stream_details_label(sd, name_line=''):
@@ -1042,22 +1204,25 @@ _AUDIO_CODEC_NORM = {
 
 
 def _parse_stream_details(stream):
-    """Extract video/audio/size details from stream name+title for TMDbHelper."""
+    """Extract video/audio/size details from stream name+title. Cached on stream dict."""
+    cached = stream.get('_parsed')
+    if cached is not None:
+        return cached
+
     text = '{}\n{}'.format(stream.get('name', ''), stream.get('title', ''))
 
     details = {}
 
     q_m = _RE_QUALITY.search(text)
     if q_m:
-        q = q_m.group(1).lower()
-        if q in ('4k',):
-            q = '2160p'
-        elif q in ('8k',):
-            q = '8k'
+        q = _normalize_quality_key(q_m.group(1))
+        details['_quality_key'] = q
         details['quality'] = '8K' if q == '8k' else ('4K' if q == '2160p' else q)
         res = _RESOLUTION_MAP.get(q)
         if res:
             details['width'], details['height'] = res
+    else:
+        details['_quality_key'] = 'other'
 
     # --- HDR tags (DV, HDR10+, HDR10, HDR, SDR) ---
     hdr_tags = []
@@ -1085,6 +1250,7 @@ def _parse_stream_details(stream):
     if 'width' not in details and hdr_tags:
         has_premium = any(t in hdr_tags for t in ('DV', 'IMAX'))
         if has_premium:
+            details['_quality_key'] = '2160p'
             details['quality'] = '4K'
             details['width'], details['height'] = 3840, 2160
 
@@ -1128,6 +1294,7 @@ def _parse_stream_details(stream):
         elif unit == 'MB':
             details['size'] = int(size_val * 1024 * 1024)
 
+    stream['_parsed'] = details
     return details
 
 
@@ -1289,7 +1456,7 @@ def _search_streams(stream_type, stream_id, addon_idx=None):
     else:
         indices = list(range(len(addons)))
 
-    timeout = ADDON.getSettingInt('request_timeout') or 15
+    timeout = stremio.timeout
     workers = min(_MAX_WORKERS, len(indices))
 
     labels = {}
@@ -1625,6 +1792,8 @@ def _dispatch(action, params):
         install_player_file()
     elif action == 'addon_info':
         addon_info_dialog(int(params['idx']))
+    elif action == 'select_meta_addon':
+        select_meta_addon()
 
 
 if __name__ == '__main__':

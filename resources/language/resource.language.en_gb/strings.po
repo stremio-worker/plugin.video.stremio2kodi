@@ -299,3 +299,32 @@ msgstr "Channels"
 msgctxt "#30118"
 msgid "TV"
 msgstr "TV"
+
+# -- Catalog enrichment --
+msgctxt "#30119"
+msgid "Enrich catalog metadata"
+msgstr ""
+
+msgctxt "#30120"
+msgid "Off"
+msgstr ""
+
+msgctxt "#30121"
+msgid "Stremio addon (auto)"
+msgstr ""
+
+msgctxt "#30122"
+msgid "TMDbHelper (TMDB)"
+msgstr ""
+
+msgctxt "#30123"
+msgid "Select meta addon"
+msgstr ""
+
+msgctxt "#30124"
+msgid "Meta addon saved"
+msgstr ""
+
+msgctxt "#30125"
+msgid "Choose meta addon..."
+msgstr ""
