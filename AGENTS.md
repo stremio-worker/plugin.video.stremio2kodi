@@ -65,10 +65,9 @@ Kodi; they are the single source of truth for archive naming.
 ## Release is automatic on push
 
 `.github/workflows/release.yml` runs on push to `main` or `dev`: it calls
-`scripts/package.py` (`--dev` on the `dev` branch) to build the zip, creates a
-GitHub release (`dev` becomes a prerelease), then dispatches an `addon_updated`
-event to the `VSeryi/kodi` repository. To ship a change, bump `version` in
-`addon.xml`; do not push unfinished work to `main`/`dev`.
+`scripts/package.py` (`--dev` on the `dev` branch) to build the zip and creates
+a GitHub release (`dev` becomes a prerelease). To ship a change, bump `version`
+in `addon.xml`; do not push unfinished work to `main`/`dev`.
 
 ## Optional integrations
 
