@@ -466,8 +466,10 @@ def addons_sync():
              xbmc.LOGINFO)
     ok = 0
     failed = 0
+    cancelled = False
     for index, entry in enumerate(addons):
         if progress.iscanceled():
+            cancelled = True
             break
         entry = entry or {}
         transport_url = entry.get('transportUrl', '') or ''
@@ -486,6 +488,9 @@ def addons_sync():
             # Standard install flow: validate the manifest before adding.
             base_url = stremio.normalize_url(transport_url)
             fetched = _get_manifest(base_url)
+            if progress.iscanceled():
+                cancelled = True
+                break
             if not fetched:
                 xbmc.log('Stremio2Kodi: addons_sync: skip (unreachable): {}'
                          .format(name), xbmc.LOGINFO)
@@ -501,18 +506,24 @@ def addons_sync():
                 name, e), xbmc.LOGERROR)
             failed += 1
 
-    # Show the summary on the dialog briefly, then close it cleanly.
-    progress.update(100, L(30155).format(ok, total))
-    time.sleep(0.8)
-    progress.close()
+    if cancelled:
+        # Canceled: close right away, do not update the dialog again.
+        progress.close()
+    else:
+        # Show the summary on the dialog briefly, then close it cleanly.
+        progress.update(100, L(30155).format(ok, total))
+        time.sleep(0.8)
+        progress.close()
     # Give the GUI a beat to remove the modal before the notification.
     time.sleep(0.2)
 
     save_sync_record(total=total, ok=ok)
-    xbmc.log('Stremio2Kodi: addons_sync: finished ok={} failed={}'.format(
-        ok, failed), xbmc.LOGINFO)
+    xbmc.log('Stremio2Kodi: addons_sync: finished ok={} failed={} '
+             'cancelled={}'.format(ok, failed, cancelled), xbmc.LOGINFO)
+    summary = L(30157).format(ok, total) if cancelled \
+        else L(30155).format(ok, total)
     xbmcgui.Dialog().notification(
-        ADDON_NAME, L(30155).format(ok, total), xbmcgui.NOTIFICATION_INFO)
+        ADDON_NAME, summary, xbmcgui.NOTIFICATION_INFO)
     xbmc.executebuiltin('Container.Refresh')
 
 

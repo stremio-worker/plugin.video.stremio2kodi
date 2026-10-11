@@ -421,3 +421,7 @@ msgstr "Sincronización finalizada: {} de {} addons instalados"
 msgctxt "#30156"
 msgid "No addons found in your Stremio collection"
 msgstr "No hay addons en tu colección de Stremio"
+
+msgctxt "#30157"
+msgid "Sync canceled: {} of {} addons installed"
+msgstr "Sincronización cancelada: {} de {} addons instalados"
