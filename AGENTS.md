@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Kodi video add-on that browses and streams Stremio add-ons. Pure Python 3, no
-build step, no test suite, no linter config. `addon.xml` targets Kodi 21 (Omega)
+compile step, no test suite, no linter config. `addon.xml` targets Kodi 21 (Omega)
 via `xbmc.python 3.0.0`.
 
 ## Cannot be run/tested outside Kodi
@@ -53,13 +53,22 @@ must be added to the same numeric `msgctxt` in **both**
 `resources/language/resource.language.es_es/strings.po` (they are kept in sync).
 `resources/settings.xml` labels reuse these same IDs.
 
+## Packaging
+
+`scripts/package.py` builds the installable zip into `dist/` from an allowlist of
+runtime files (`addon.xml`, `main.py`, `icon.png`, `fanart.jpg`, `LICENSE`,
+`resources/`); id/version come from `addon.xml`, and a warning is printed for any
+unclassified top-level entry. Wrappers: `scripts/build.sh [--dev]` and
+`scripts/clean.sh`. These are plain Python/bash and run outside Kodi; they are the
+single source of truth for archive naming.
+
 ## Release is automatic on push
 
-`.github/workflows/release.yml` runs on push to `main` or `dev`: it reads
-`version` from `addon.xml`, builds a zip, creates a GitHub release (`dev` becomes a
-prerelease), then dispatches an `addon_updated` event to the `VSeryi/kodi`
-repository. To ship a change, bump `version` in `addon.xml`; do not push
-unfinished work to `main`/`dev`.
+`.github/workflows/release.yml` runs on push to `main` or `dev`: it calls
+`scripts/package.py` (`--dev` on the `dev` branch) to build the zip, creates a
+GitHub release (`dev` becomes a prerelease), then dispatches an `addon_updated`
+event to the `VSeryi/kodi` repository. To ship a change, bump `version` in
+`addon.xml`; do not push unfinished work to `main`/`dev`.
 
 ## Optional integrations
 

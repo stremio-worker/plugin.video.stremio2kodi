@@ -21,11 +21,11 @@ jobs:
           BRANCH="${GITHUB_REF##*/}"
           if [ "$BRANCH" = "dev" ]; then
             TAG="v${VERSION}-dev"
-            ZIP_NAME="${ADDON_ID}-${VERSION}-dev.zip"
+            ZIP_NAME="dist/${ADDON_ID}-${VERSION}-dev.zip"
             IS_PRE="true"
           else
             TAG="v${VERSION}"
-            ZIP_NAME="${ADDON_ID}-${VERSION}.zip"
+            ZIP_NAME="dist/${ADDON_ID}-${VERSION}.zip"
             IS_PRE="false"
           fi
           echo "addon_id=$ADDON_ID" >> "$GITHUB_OUTPUT"
@@ -37,10 +37,7 @@ jobs:
 
       - name: Build addon zip
         run: |
-          mkdir -p build/${{ steps.addon.outputs.addon_id }}
-          rsync -av --exclude='.git' --exclude='.github' --exclude='__pycache__' --exclude='*.pyc' --exclude='build' ./ build/${{ steps.addon.outputs.addon_id }}/
-          cd build
-          zip -r "../${{ steps.addon.outputs.zip_name }}" "${{ steps.addon.outputs.addon_id }}"
+          python3 scripts/package.py ${{ steps.addon.outputs.branch == 'dev' && '--dev' || '' }}
 
       - name: Delete existing release if same tag
         run: |
