@@ -70,17 +70,12 @@ def download_qr(url, dest_path, timeout=_TIMEOUT):
 
     The body is decompressed (the CDN may gzip even images) and checked
     against the PNG signature: Kodi renders nothing for a corrupt file, so a
-    bad download is reported instead of silently written.
+    bad download is rejected instead of silently written.
     """
     req = urllib.request.Request(url, headers=BROWSER_HEADERS)
     with urllib.request.urlopen(req, timeout=timeout) as response:
         body = decode_body(response)
-        content_type = response.headers.get('Content-Type') or ''
     if not body.startswith(_PNG_MAGIC):
-        xbmc.log(
-            'Stremio2Kodi: QR download is not a PNG (content-type={!r}, '
-            '{} bytes, first={!r})'.format(
-                content_type, len(body), body[:16]), xbmc.LOGWARNING)
         return False
     with open(dest_path, 'wb') as handle:
         handle.write(body)

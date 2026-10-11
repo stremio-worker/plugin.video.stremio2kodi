@@ -148,14 +148,10 @@ class LoginDialog(xbmcgui.WindowXMLDialog):
         """Request a fresh code + QR. Returns True on success."""
         result = stremio_auth.create_link()
         if not result or not result.get('code'):
-            xbmc.log('Stremio2Kodi: login: create_link failed',
-                     xbmc.LOGWARNING)
             self._set_status(_L(30147))
             self._stop.wait(_RETRY_DELAY)
             return False
         self._code = result['code']
-        xbmc.log('Stremio2Kodi: login: code {} created'.format(self._code),
-                 xbmc.LOGINFO)
         self._set_link(result.get('link', ''))
         self._set_qr(result.get('qrcode', ''))
         self._deadline = time.time() + _CODE_TTL
@@ -183,28 +179,19 @@ class LoginDialog(xbmcgui.WindowXMLDialog):
 
     def _set_qr(self, url):
         if not url:
-            xbmc.log('Stremio2Kodi: login: create response had no qrcode',
-                     xbmc.LOGWARNING)
             return
         path = _qr_temp_path()
         try:
             if not stremio_auth.download_qr(url, path):
-                xbmc.log('Stremio2Kodi: login: QR download failed for {}'
-                         .format(url), xbmc.LOGWARNING)
                 return
-        except Exception as e:
-            xbmc.log('Stremio2Kodi: login: QR download error: {}'.format(e),
-                     xbmc.LOGWARNING)
+        except Exception:
             return
         self._delete_qr_file()
         self._qr_path = path
         try:
             self.getControl(self._QR_IMAGE).setImage(path)
-            xbmc.log('Stremio2Kodi: login: QR image set from {}'.format(path),
-                     xbmc.LOGINFO)
-        except Exception as e:
-            xbmc.log('Stremio2Kodi: login: setImage failed: {}'.format(e),
-                     xbmc.LOGWARNING)
+        except Exception:
+            pass
 
     # --- cleanup -----------------------------------------------------------
 
