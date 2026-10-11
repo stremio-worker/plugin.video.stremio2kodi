@@ -17,6 +17,10 @@ msgctxt "#30002"
 msgid "Install TMDbHelper Player"
 msgstr "Instalar Reproductor TMDbHelper"
 
+msgctxt "#30003"
+msgid "Account"
+msgstr "Cuenta"
+
 # -- Exploración de catálogos --
 msgctxt "#30010"
 msgid "No Stremio add-ons configured"
@@ -328,3 +332,20 @@ msgstr "Addon de metadatos guardado"
 msgctxt "#30125"
 msgid "Choose meta addon..."
 msgstr "Elegir addon de metadatos..."
+
+# -- Cuenta --
+msgctxt "#30130"
+msgid "Login / Logout"
+msgstr "Iniciar / Cerrar sesión"
+
+msgctxt "#30131"
+msgid "Account Info"
+msgstr "Información de la cuenta"
+
+msgctxt "#30132"
+msgid "Addons Sync"
+msgstr "Sincronizar addons"
+
+msgctxt "#30133"
+msgid "Not implemented yet"
+msgstr "Aún no implementado"

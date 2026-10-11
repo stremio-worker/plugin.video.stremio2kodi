@@ -364,12 +364,46 @@ def add_dir(label, action, is_folder=True, art=None, info=None, **params):
 def main_menu():
     add_dir(L(30000), 'catalogs',
             art={'icon': 'DefaultVideoPlaylists.png'})
+    add_dir(L(30003), 'account',
+            art={'icon': 'DefaultUser.png'})
     add_dir(L(30001), 'manage',
             art={'icon': 'DefaultAddonProgram.png'})
     add_dir(L(30002), 'install_player',
             is_folder=False,
             art={'icon': 'DefaultAddonService.png'})
     xbmcplugin.endOfDirectory(HANDLE)
+
+
+def account_menu():
+    """Account submenu. The feature actions are filled in by later plans."""
+    add_dir(L(30130), 'account_login', is_folder=False,
+            art={'icon': 'DefaultUser.png'})
+    add_dir(L(30131), 'account_info', is_folder=False,
+            art={'icon': 'DefaultAddonProgram.png'})
+    add_dir(L(30132), 'addons_sync', is_folder=False,
+            art={'icon': 'DefaultAddonService.png'})
+    xbmcplugin.endOfDirectory(HANDLE)
+
+
+def _account_stub():
+    """Temporary placeholder for account features (see later plans)."""
+    xbmcgui.Dialog().notification(
+        ADDON_NAME, L(30133), xbmcgui.NOTIFICATION_INFO)
+
+
+def account_login():
+    """Placeholder: Stremio login/logout (implemented in a later plan)."""
+    _account_stub()
+
+
+def account_info():
+    """Placeholder: show account info (implemented in a later plan)."""
+    _account_stub()
+
+
+def addons_sync():
+    """Placeholder: sync addons with account (implemented in a later plan)."""
+    _account_stub()
 
 
 def catalogs_menu():
@@ -1742,6 +1776,14 @@ def _dispatch(action, params):
         main_menu()
     elif action == 'catalogs':
         catalogs_menu()
+    elif action == 'account':
+        account_menu()
+    elif action == 'account_login':
+        account_login()
+    elif action == 'account_info':
+        account_info()
+    elif action == 'addons_sync':
+        addons_sync()
     elif action == 'addon_catalogs':
         addon_catalogs(int(params['idx']))
     elif action == 'catalog_filters':

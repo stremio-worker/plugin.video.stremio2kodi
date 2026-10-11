@@ -17,6 +17,10 @@ msgctxt "#30002"
 msgid "Install TMDbHelper Player"
 msgstr ""
 
+msgctxt "#30003"
+msgid "Account"
+msgstr ""
+
 # -- Catalog browsing --
 msgctxt "#30010"
 msgid "No Stremio add-ons configured"
@@ -327,4 +331,21 @@ msgstr ""
 
 msgctxt "#30125"
 msgid "Choose meta addon..."
+msgstr ""
+
+# -- Account --
+msgctxt "#30130"
+msgid "Login / Logout"
+msgstr ""
+
+msgctxt "#30131"
+msgid "Account Info"
+msgstr ""
+
+msgctxt "#30132"
+msgid "Addons Sync"
+msgstr ""
+
+msgctxt "#30133"
+msgid "Not implemented yet"
 msgstr ""
