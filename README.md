@@ -16,13 +16,12 @@ Browse and stream content from Stremio add-ons within Kodi.
 
 ### From Repository (recommended)
 
-1. Download the repository zip from [vseryi.github.io/kodi](https://vseryi.github.io/kodi/repository.vseryi4kodi-1.0.0.zip)
+1. Download the repository zip from [releases](https://github.com/stremio-worker/plugin.video.stremio2kodi/releases/latest)
 2. In Kodi: **Settings → Add-ons → Install from zip file**
-3. Then: **Install from repository → VSeryi4Kodi → Video add-ons → Stremio2Kodi**
 
 ### Manual
 
-1. Download the latest release from [Releases](https://github.com/VSeryi/plugin.video.stremio2kodi/releases)
+1. Download the latest release from [Releases](https://github.com/stremio-worker/plugin.video.stremio2kodi/releases)
 2. In Kodi: **Settings → Add-ons → Install from zip file**
 
 ## Configuration
