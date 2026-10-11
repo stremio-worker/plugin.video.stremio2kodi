@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<window id="1110">
+    <defaultcontrol always="true">30</defaultcontrol>
+    <controls>
+        <control type="image" id="1">
+            <description>Background</description>
+            <posx>0</posx>
+            <posy>0</posy>
+            <width>1920</width>
+            <height>1080</height>
+            <aspectratio>stretch</aspectratio>
+        </control>
+        <control type="label" id="2">
+            <description>Title</description>
+            <posx>260</posx>
+            <posy>90</posy>
+            <width>1400</width>
+            <height>60</height>
+            <align>center</align>
+            <font>font24_title</font>
+            <textcolor>ffffffff</textcolor>
+            <label>30140</label>
+        </control>
+        <control type="image" id="10">
+            <description>QR code</description>
+            <posx>760</posx>
+            <posy>170</posy>
+            <width>400</width>
+            <height>400</height>
+            <aspectratio>keep</aspectratio>
+        </control>
+        <control type="label" id="20">
+            <description>Login link</description>
+            <posx>260</posx>
+            <posy>600</posy>
+            <width>1400</width>
+            <height>40</height>
+            <align>center</align>
+            <font>font13</font>
+            <textcolor>ffdedede</textcolor>
+            <label/>
+        </control>
+        <control type="label" id="21">
+            <description>Status / countdown</description>
+            <posx>260</posx>
+            <posy>650</posy>
+            <width>1400</width>
+            <height>40</height>
+            <align>center</align>
+            <font>font13</font>
+            <textcolor>ff9fd4ff</textcolor>
+            <label/>
+        </control>
+        <control type="button" id="30">
+            <description>New code</description>
+            <posx>620</posx>
+            <posy>730</posy>
+            <width>320</width>
+            <height>70</height>
+            <font>font13</font>
+            <textcolor>ffffffff</textcolor>
+            <focusedcolor>ffffffff</focusedcolor>
+            <texturefocus colordiffuse="ff3b7dd8">white.png</texturefocus>
+            <texturenofocus colordiffuse="ff2b2b2b">white.png</texturenofocus>
+            <label>30143</label>
+            <onleft>30</onleft>
+            <onright>31</onright>
+            <onup>30</onup>
+            <ondown>30</ondown>
+        </control>
+        <control type="button" id="31">
+            <description>Close</description>
+            <posx>980</posx>
+            <posy>730</posy>
+            <width>320</width>
+            <height>70</height>
+            <font>font13</font>
+            <textcolor>ffffffff</textcolor>
+            <focusedcolor>ffffffff</focusedcolor>
+            <texturefocus colordiffuse="ff3b7dd8">white.png</texturefocus>
+            <texturenofocus colordiffuse="ff2b2b2b">white.png</texturenofocus>
+            <label>30144</label>
+            <onleft>30</onleft>
+            <onright>31</onright>
+            <onup>31</onup>
+            <ondown>31</ondown>
+        </control>
+    </controls>
+</window>

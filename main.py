@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.join(ADDON_PATH, 'resources', 'lib'))
 from stremio import StremioClient, open_json  # noqa: E402
 from addon_manager import AddonManager      # noqa: E402
 from player_setup import install_player_file  # noqa: E402
+from account_store import get_account, save_account, clear_account  # noqa: E402
 
 HANDLE = int(sys.argv[1])
 BASE_URL = sys.argv[0]
@@ -375,9 +376,13 @@ def main_menu():
 
 
 def account_menu():
-    """Account submenu. The feature actions are filled in by later plans."""
-    add_dir(L(30130), 'account_login', is_folder=False,
-            art={'icon': 'DefaultUser.png'})
+    """Account submenu. Info/Sync are filled in by later plans."""
+    if get_account().get('auth_key'):
+        add_dir(L(30134), 'account_logout', is_folder=False,
+                art={'icon': 'DefaultUser.png'})
+    else:
+        add_dir(L(30130), 'account_login', is_folder=False,
+                art={'icon': 'DefaultUser.png'})
     add_dir(L(30131), 'account_info', is_folder=False,
             art={'icon': 'DefaultAddonProgram.png'})
     add_dir(L(30132), 'addons_sync', is_folder=False,
@@ -385,15 +390,43 @@ def account_menu():
     xbmcplugin.endOfDirectory(HANDLE)
 
 
+def account_login():
+    """Run the Stremio QR device-login and persist the resulting authKey."""
+    from login_dialog import show_login_dialog
+    from stremio_auth import login_with_token
+
+    token = show_login_dialog(ADDON_PATH)
+    if not token:
+        return
+
+    result = login_with_token(token)
+    if not result or not result.get('authKey'):
+        xbmcgui.Dialog().notification(
+            ADDON_NAME, L(30147), xbmcgui.NOTIFICATION_ERROR)
+        return
+
+    email = (result.get('user') or {}).get('email', '')
+    save_account(result['authKey'], email)
+    xbmcgui.Dialog().notification(
+        ADDON_NAME, L(30149).format(email or '?'),
+        xbmcgui.NOTIFICATION_INFO)
+    xbmc.executebuiltin('Container.Refresh')
+
+
+def account_logout():
+    """Clear the stored Stremio account after confirmation."""
+    if not xbmcgui.Dialog().yesno(ADDON_NAME, L(30150)):
+        return
+    clear_account()
+    xbmcgui.Dialog().notification(
+        ADDON_NAME, L(30148), xbmcgui.NOTIFICATION_INFO)
+    xbmc.executebuiltin('Container.Refresh')
+
+
 def _account_stub():
     """Temporary placeholder for account features (see later plans)."""
     xbmcgui.Dialog().notification(
         ADDON_NAME, L(30133), xbmcgui.NOTIFICATION_INFO)
-
-
-def account_login():
-    """Placeholder: Stremio login/logout (implemented in a later plan)."""
-    _account_stub()
 
 
 def account_info():
@@ -1780,6 +1813,8 @@ def _dispatch(action, params):
         account_menu()
     elif action == 'account_login':
         account_login()
+    elif action == 'account_logout':
+        account_logout()
     elif action == 'account_info':
         account_info()
     elif action == 'addons_sync':

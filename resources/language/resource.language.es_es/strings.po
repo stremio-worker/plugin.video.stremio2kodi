@@ -335,8 +335,8 @@ msgstr "Elegir addon de metadatos..."
 
 # -- Cuenta --
 msgctxt "#30130"
-msgid "Login / Logout"
-msgstr "Iniciar / Cerrar sesión"
+msgid "Login"
+msgstr "Iniciar sesión"
 
 msgctxt "#30131"
 msgid "Account Info"
@@ -349,3 +349,51 @@ msgstr "Sincronizar addons"
 msgctxt "#30133"
 msgid "Not implemented yet"
 msgstr "Aún no implementado"
+
+msgctxt "#30134"
+msgid "Logout"
+msgstr "Cerrar sesión"
+
+msgctxt "#30140"
+msgid "Login with Stremio"
+msgstr "Iniciar sesión con Stremio"
+
+msgctxt "#30141"
+msgid "Scan the QR code or open the link"
+msgstr "Escanea el código QR o abre el enlace"
+
+msgctxt "#30142"
+msgid "Code expires in {}"
+msgstr "El código caduca en {}"
+
+msgctxt "#30143"
+msgid "New code"
+msgstr "Nuevo código"
+
+msgctxt "#30144"
+msgid "Close"
+msgstr "Cerrar"
+
+msgctxt "#30145"
+msgid "Waiting for authorization..."
+msgstr "Esperando autorización..."
+
+msgctxt "#30146"
+msgid "Login successful"
+msgstr "Sesión iniciada"
+
+msgctxt "#30147"
+msgid "Could not start login"
+msgstr "No se pudo iniciar la sesión"
+
+msgctxt "#30148"
+msgid "Logged out"
+msgstr "Sesión cerrada"
+
+msgctxt "#30149"
+msgid "You are now logged in as {}"
+msgstr "Has iniciado sesión como {}"
+
+msgctxt "#30150"
+msgid "Log out of Stremio?"
+msgstr "¿Cerrar sesión de Stremio?"
