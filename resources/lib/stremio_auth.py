@@ -1,8 +1,9 @@
 """Stremio authentication client.
 
 Covers the link.strem.io device-login flow (``create`` / ``read``), the
-api.strem.io token exchange (``loginWithToken``) and QR image download. Kept
-separate from ``stremio.py``, which implements the Stremio Add-on Protocol.
+api.strem.io token exchange (``loginWithToken``), the add-on collection fetch
+(``addonCollectionGet``) and QR image download. Kept separate from
+``stremio.py``, which implements the Stremio Add-on Protocol.
 """
 import json
 import urllib.parse
@@ -14,6 +15,7 @@ from stremio import BROWSER_HEADERS, decode_body, open_json
 
 _LINK_API = 'https://link.stremio.com/api/v2'
 _LOGIN_API = 'https://api.strem.io/api/loginWithToken'
+_COLLECTION_API = 'https://api.strem.io/api/addonCollectionGet'
 _TIMEOUT = 10
 
 
@@ -68,6 +70,27 @@ def download_qr(url, dest_path, timeout=_TIMEOUT):
     with open(dest_path, 'wb') as handle:
         handle.write(body)
     return True
+
+
+def fetch_addon_collection(auth_key, update=True, timeout=_TIMEOUT):
+    """Fetch the add-on collection of the logged-in Stremio account.
+
+    Returns ``(addons, last_modified)`` where ``addons`` is the list of
+    ``{transportUrl, transportName, manifest, flags}`` dicts, or
+    ``(None, None)`` when the request fails.
+    """
+    try:
+        data = _post_json(
+            _COLLECTION_API,
+            {'type': 'AddonCollectionGet', 'authKey': auth_key,
+             'update': bool(update)},
+            timeout=timeout)
+    except Exception as e:
+        xbmc.log('Stremio2Kodi: addonCollectionGet failed: {}'.format(e),
+                 xbmc.LOGWARNING)
+        return None, None
+    result = (data or {}).get('result') or {}
+    return result.get('addons') or [], result.get('lastModified')
 
 
 def _post_json(url, payload, timeout):

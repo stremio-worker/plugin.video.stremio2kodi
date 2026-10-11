@@ -24,7 +24,8 @@ sys.path.insert(0, os.path.join(ADDON_PATH, 'resources', 'lib'))
 from stremio import StremioClient, open_json  # noqa: E402
 from addon_manager import AddonManager      # noqa: E402
 from player_setup import install_player_file  # noqa: E402
-from account_store import get_account, save_account, clear_account  # noqa: E402
+from account_store import (get_account, save_account, clear_account,
+                           save_sync_record)  # noqa: E402
 
 HANDLE = int(sys.argv[1])
 BASE_URL = sys.argv[0]
@@ -435,8 +436,61 @@ def account_info():
 
 
 def addons_sync():
-    """Placeholder: sync addons with account (implemented in a later plan)."""
-    _account_stub()
+    """Install the logged-in Stremio account's add-on collection."""
+    from stremio_auth import fetch_addon_collection
+
+    account = get_account()
+    if not account.get('auth_key'):
+        xbmcgui.Dialog().notification(
+            ADDON_NAME, L(30151), xbmcgui.NOTIFICATION_WARNING)
+        return
+
+    progress = xbmcgui.DialogProgress()
+    progress.create(ADDON_NAME, L(30152))
+
+    addons, _last_modified = fetch_addon_collection(account['auth_key'])
+    if addons is None:
+        progress.close()
+        xbmcgui.Dialog().notification(
+            ADDON_NAME, L(30154), xbmcgui.NOTIFICATION_ERROR)
+        return
+
+    total = len(addons)
+    if total == 0:
+        progress.close()
+        xbmcgui.Dialog().notification(
+            ADDON_NAME, L(30156), xbmcgui.NOTIFICATION_INFO)
+        return
+
+    ok = 0
+    for index, entry in enumerate(addons):
+        if progress.iscanceled():
+            break
+        entry = entry or {}
+        transport_url = entry.get('transportUrl', '')
+        manifest = entry.get('manifest') or {}
+        name = manifest.get('name') or entry.get('transportName') \
+            or transport_url or ''
+        progress.update(
+            int((index + 1) * 100 / total),
+            name,
+            L(30153).format(index + 1, total))
+        if not transport_url:
+            continue
+        # Standard install flow: validate the manifest before adding.
+        base_url = stremio.normalize_url(transport_url)
+        fetched = _get_manifest(base_url)
+        if not fetched:
+            continue
+        if addon_mgr.add_addon(base_url, fetched.get('name', name)):
+            ok += 1
+
+    progress.close()
+
+    save_sync_record(total=total, ok=ok)
+    xbmcgui.Dialog().notification(
+        ADDON_NAME, L(30155).format(ok, total), xbmcgui.NOTIFICATION_INFO)
+    xbmc.executebuiltin('Container.Refresh')
 
 
 def catalogs_menu():

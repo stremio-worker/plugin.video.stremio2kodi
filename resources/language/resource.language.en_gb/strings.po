@@ -397,3 +397,27 @@ msgstr ""
 msgctxt "#30150"
 msgid "Log out of Stremio?"
 msgstr ""
+
+msgctxt "#30151"
+msgid "Log in to Stremio before syncing addons"
+msgstr ""
+
+msgctxt "#30152"
+msgid "Fetching addons from Stremio..."
+msgstr ""
+
+msgctxt "#30153"
+msgid "Installing {} / {}"
+msgstr ""
+
+msgctxt "#30154"
+msgid "Addon sync failed"
+msgstr ""
+
+msgctxt "#30155"
+msgid "Sync finished: {} of {} addons installed"
+msgstr ""
+
+msgctxt "#30156"
+msgid "No addons found in your Stremio collection"
+msgstr ""

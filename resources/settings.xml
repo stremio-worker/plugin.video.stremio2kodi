@@ -80,6 +80,24 @@
                     <default></default>
                     <control type="edit" format="string"/>
                 </setting>
+                <setting id="sync_total" type="string" label="30130" help="">
+                    <level>4</level>
+                    <visible>false</visible>
+                    <default></default>
+                    <control type="edit" format="string"/>
+                </setting>
+                <setting id="sync_ok" type="string" label="30130" help="">
+                    <level>4</level>
+                    <visible>false</visible>
+                    <default></default>
+                    <control type="edit" format="string"/>
+                </setting>
+                <setting id="sync_time" type="string" label="30130" help="">
+                    <level>4</level>
+                    <visible>false</visible>
+                    <default></default>
+                    <control type="edit" format="string"/>
+                </setting>
             </group>
             <group id="2" label="30114">
                 <setting id="preferred_quality" type="integer" label="30097" help="">

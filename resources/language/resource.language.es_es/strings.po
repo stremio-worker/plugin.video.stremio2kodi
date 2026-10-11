@@ -397,3 +397,27 @@ msgstr "Has iniciado sesión como {}"
 msgctxt "#30150"
 msgid "Log out of Stremio?"
 msgstr "¿Cerrar sesión de Stremio?"
+
+msgctxt "#30151"
+msgid "Log in to Stremio before syncing addons"
+msgstr "Inicia sesión en Stremio antes de sincronizar addons"
+
+msgctxt "#30152"
+msgid "Fetching addons from Stremio..."
+msgstr "Obteniendo addons de Stremio..."
+
+msgctxt "#30153"
+msgid "Installing {} / {}"
+msgstr "Instalando {} / {}"
+
+msgctxt "#30154"
+msgid "Addon sync failed"
+msgstr "Fallo en la sincronización de addons"
+
+msgctxt "#30155"
+msgid "Sync finished: {} of {} addons installed"
+msgstr "Sincronización finalizada: {} de {} addons instalados"
+
+msgctxt "#30156"
+msgid "No addons found in your Stremio collection"
+msgstr "No hay addons en tu colección de Stremio"

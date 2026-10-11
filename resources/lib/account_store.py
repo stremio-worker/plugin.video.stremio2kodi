@@ -12,6 +12,9 @@ import xbmcaddon
 _AUTH_KEY = 'auth_key'
 _EMAIL = 'account_email'
 _LOGIN_TIME = 'login_time'
+_SYNC_TOTAL = 'sync_total'
+_SYNC_OK = 'sync_ok'
+_SYNC_TIME = 'sync_time'
 
 
 def get_account():
@@ -50,6 +53,32 @@ def clear_account():
     addon.setSetting(_AUTH_KEY, '')
     addon.setSetting(_EMAIL, '')
     addon.setSetting(_LOGIN_TIME, '')
+
+
+def save_sync_record(total, ok, sync_time=None):
+    """Store the last addon-sync result (``ok`` of ``total`` addons)."""
+    addon = xbmcaddon.Addon()
+    stamp = int(time.time()) if sync_time is None else int(sync_time)
+    addon.setSetting(_SYNC_TOTAL, str(int(total)))
+    addon.setSetting(_SYNC_OK, str(int(ok)))
+    addon.setSetting(_SYNC_TIME, str(stamp))
+
+
+def get_sync_record():
+    """Return {'total': int, 'ok': int, 'sync_time': int}; 0 when unset."""
+    addon = xbmcaddon.Addon()
+
+    def _int(key):
+        try:
+            return int(addon.getSetting(key) or 0)
+        except ValueError:
+            return 0
+
+    return {
+        'total': _int(_SYNC_TOTAL),
+        'ok': _int(_SYNC_OK),
+        'sync_time': _int(_SYNC_TIME),
+    }
 
 
 def is_logged_in():
