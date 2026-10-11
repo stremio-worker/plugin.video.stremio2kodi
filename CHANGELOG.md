@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-10-11
+
 ### Added
 - Subtitle support: subtitle tracks are fetched from add-ons declaring a
   `subtitles` resource (same manifest type/idPrefix filtering as streams) and
