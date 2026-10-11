@@ -77,7 +77,7 @@ def fetch_addon_collection(auth_key, update=True, timeout=_TIMEOUT):
 
     Returns ``(addons, last_modified)`` where ``addons`` is the list of
     ``{transportUrl, transportName, manifest, flags}`` dicts, or
-    ``(None, None)`` when the request fails.
+    ``(None, None)`` when the request fails or the payload is malformed.
     """
     try:
         data = _post_json(
@@ -89,8 +89,21 @@ def fetch_addon_collection(auth_key, update=True, timeout=_TIMEOUT):
         xbmc.log('Stremio2Kodi: addonCollectionGet failed: {}'.format(e),
                  xbmc.LOGWARNING)
         return None, None
-    result = (data or {}).get('result') or {}
-    return result.get('addons') or [], result.get('lastModified')
+    if not isinstance(data, dict):
+        xbmc.log('Stremio2Kodi: addonCollectionGet: unexpected payload',
+                 xbmc.LOGWARNING)
+        return None, None
+    if 'error' in data:
+        xbmc.log('Stremio2Kodi: addonCollectionGet error: {}'.format(
+            data.get('error')), xbmc.LOGWARNING)
+        return None, None
+    result = data.get('result') or {}
+    addons = result.get('addons')
+    if not isinstance(addons, list):
+        xbmc.log('Stremio2Kodi: addonCollectionGet: no addons list',
+                 xbmc.LOGWARNING)
+        return None, None
+    return addons, result.get('lastModified')
 
 
 def _post_json(url, payload, timeout):

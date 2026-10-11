@@ -462,12 +462,15 @@ def addons_sync():
             ADDON_NAME, L(30156), xbmcgui.NOTIFICATION_INFO)
         return
 
+    xbmc.log('Stremio2Kodi: addons_sync: {} addons to install'.format(total),
+             xbmc.LOGINFO)
     ok = 0
+    failed = 0
     for index, entry in enumerate(addons):
         if progress.iscanceled():
             break
         entry = entry or {}
-        transport_url = entry.get('transportUrl', '')
+        transport_url = entry.get('transportUrl', '') or ''
         manifest = entry.get('manifest') or {}
         name = manifest.get('name') or entry.get('transportName') \
             or transport_url or ''
@@ -476,18 +479,37 @@ def addons_sync():
             name,
             L(30153).format(index + 1, total))
         if not transport_url:
+            xbmc.log('Stremio2Kodi: addons_sync: skip (no url): {}'.format(name),
+                     xbmc.LOGINFO)
+            failed += 1
             continue
-        # Standard install flow: validate the manifest before adding.
-        base_url = stremio.normalize_url(transport_url)
-        fetched = _get_manifest(base_url)
-        if not fetched:
-            continue
-        if addon_mgr.add_addon(base_url, fetched.get('name', name)):
-            ok += 1
+        try:
+            # Standard install flow: validate the manifest before adding.
+            base_url = stremio.normalize_url(transport_url)
+            fetched = _get_manifest(base_url)
+            if not fetched:
+                xbmc.log('Stremio2Kodi: addons_sync: skip (unreachable): {}'
+                         .format(name), xbmc.LOGINFO)
+                failed += 1
+                continue
+            if addon_mgr.add_addon(base_url, fetched.get('name', name)):
+                ok += 1
+            else:
+                xbmc.log('Stremio2Kodi: addons_sync: skip (already installed): {}'
+                         .format(name), xbmc.LOGINFO)
+        except Exception as e:
+            xbmc.log('Stremio2Kodi: addons_sync: error on {}: {}'.format(
+                name, e), xbmc.LOGERROR)
+            failed += 1
 
+    # Hold the finished dialog briefly so even instant runs are visible.
+    progress.update(100, L(30155).format(ok, total), '')
+    _monitor.waitForAbort(1000)
     progress.close()
 
     save_sync_record(total=total, ok=ok)
+    xbmc.log('Stremio2Kodi: addons_sync: finished ok={} failed={}'.format(
+        ok, failed), xbmc.LOGINFO)
     xbmcgui.Dialog().notification(
         ADDON_NAME, L(30155).format(ok, total), xbmcgui.NOTIFICATION_INFO)
     xbmc.executebuiltin('Container.Refresh')
