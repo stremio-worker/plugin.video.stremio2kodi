@@ -179,10 +179,6 @@ msgctxt "#30081"
 msgid "Request timeout (seconds)"
 msgstr ""
 
-msgctxt "#30082"
-msgid "Auto-play best stream"
-msgstr ""
-
 msgctxt "#30083"
 msgid "Max concurrent searches"
 msgstr ""

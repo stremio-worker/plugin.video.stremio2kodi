@@ -52,6 +52,26 @@ def open_json(url, timeout=15):
         return json.loads(decode_body(response).decode('utf-8'))
 
 
+def head_content_type(url, extra_headers=None, timeout=8):
+    """HEAD a URL with browser-like headers and return lowercased Content-Type.
+
+    Redirects are followed. Returns None when the server rejects HEAD
+    (405/403), on network errors, or when no Content-Type header is present,
+    so callers fall back to URL-extension detection. extra_headers (a dict,
+    typically the stream's proxyHeaders.request) are merged in so servers
+    that require a User-Agent/Referer still answer.
+    """
+    headers = dict(BROWSER_HEADERS)
+    if extra_headers:
+        headers.update(extra_headers)
+    req = urllib.request.Request(url, method='HEAD', headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            return (response.headers.get('Content-Type') or '').lower()
+    except Exception:
+        return None
+
+
 class StremioClient:
     """Client for the Stremio Add-on Protocol."""
 

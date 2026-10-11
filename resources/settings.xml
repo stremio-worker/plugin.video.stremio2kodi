@@ -3,11 +3,6 @@
     <section id="main">
         <category id="general" label="30080">
             <group id="1" label="30113">
-                <setting id="auto_play" type="boolean" label="30082" help="">
-                    <level>0</level>
-                    <default>true</default>
-                    <control type="toggle"/>
-                </setting>
                 <setting id="enrich_metadata" type="integer" label="30119" help="">
                     <level>0</level>
                     <default>2</default>

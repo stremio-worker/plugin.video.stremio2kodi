@@ -21,7 +21,7 @@ _FALLBACK_ICON = os.path.join(
     xbmcvfs.translatePath(ADDON.getAddonInfo('path')), 'icon.png')
 sys.path.insert(0, os.path.join(ADDON_PATH, 'resources', 'lib'))
 
-from stremio import StremioClient, open_json  # noqa: E402
+from stremio import StremioClient, open_json, head_content_type  # noqa: E402
 from addon_manager import AddonManager      # noqa: E402
 from player_setup import install_player_file  # noqa: E402
 from account_store import (get_account, save_account, clear_account,
@@ -129,7 +129,6 @@ _PREF_QUALITY_MAP = (
 
 # Max parallel workers – keep low for constrained devices (TVs, SBCs)
 _MAX_WORKERS = ADDON.getSettingInt('max_workers') or 4
-_AUTO_PLAY = ADDON.getSettingBool('auto_play')
 _ENRICH_MODE = ADDON.getSettingInt('enrich_metadata')
 _SORT_ORDER = ADDON.getSettingInt('sort_order')
 _PREF_LANG_IDX = ADDON.getSettingInt('preferred_lang')
@@ -1000,13 +999,7 @@ def _play_from_meta(meta_type, meta_id, addon_idx, meta_info=None, meta=None):
     if selected < 0:
         return True  # User cancelled, but we handled it
 
-    if _AUTO_PLAY:
-        for i in range(selected, len(all_streams)):
-            if _try_play(all_streams[i], meta_info=meta_info):
-                return True
-        return False  # All streams failed
-    else:
-        _resolve_and_play(all_streams[selected], meta_info=meta_info)
+    _resolve_and_play(all_streams[selected], meta_info=meta_info)
     return True
 
 
@@ -1040,10 +1033,8 @@ def _build_stream_listitem(stream):
 
 
 def _pick_stream(streams):
-    """Auto-play best stream or show selection dialog. Returns index or -1."""
+    """Show the stream selection dialog. Returns index or -1."""
     streams.sort(key=_stream_sort_key)
-    if _AUTO_PLAY:
-        return 0
     items = [_build_stream_listitem(s) for s in streams]
     return xbmcgui.Dialog().select(L(30030), items, useDetails=True)
 
@@ -1345,51 +1336,12 @@ def _play_streams(stream_type, stream_id, addon_idx=None, meta_info=None):
         return
 
     selected = _pick_stream(all_streams)
-    xbmc.log('Stremio2Kodi: _play_streams: selected={} auto_play={}'.format(
-        selected, _AUTO_PLAY), xbmc.LOGDEBUG)
+    xbmc.log('Stremio2Kodi: _play_streams: selected={} of {}'.format(
+        selected, count), xbmc.LOGDEBUG)
     if selected < 0:
         return
 
-    if _AUTO_PLAY:
-        # Try each stream in sorted order, fall back on failure
-        for i in range(selected, len(all_streams)):
-            if _try_play(all_streams[i], meta_info=meta_info):
-                xbmc.log('Stremio2Kodi: _play_streams: playback started with '
-                         'stream #{}'.format(i), xbmc.LOGDEBUG)
-                return
-        xbmc.log('Stremio2Kodi: _play_streams: all streams failed for '
-                 'type={} id={}'.format(stream_type, stream_id),
-                 xbmc.LOGWARNING)
-        xbmcgui.Dialog().notification(
-            ADDON_NAME, L(30033),
-            xbmcgui.NOTIFICATION_ERROR)
-    else:
-        _resolve_and_play(all_streams[selected], meta_info=meta_info)
-
-
-def _try_play(stream, meta_info=None):
-    """Attempt to play a stream. Returns True if playback started, False otherwise."""
-    if stream.get('externalUrl'):
-        xbmc.executebuiltin(
-            'RunPlugin({})'.format(stream['externalUrl']))
-        return True
-
-    url = _stream_to_url(stream)
-    if not url:
-        return False
-
-    li = xbmcgui.ListItem(path=url)
-    _set_li_metadata(li, meta_info)
-    player = xbmc.Player()
-    player.play(url, li)
-
-    # Wait up to 10 seconds for playback to start
-    for _ in range(100):
-        if _monitor.waitForAbort(0.1):
-            return False
-        if player.isPlaying():
-            return True
-    return False
+    _resolve_and_play(all_streams[selected], meta_info=meta_info)
 
 
 def _resolve_and_play(stream, meta_info=None):
@@ -1408,7 +1360,8 @@ def _resolve_and_play(stream, meta_info=None):
 
     li = xbmcgui.ListItem(path=url)
     _set_li_metadata(li, meta_info)
-    xbmc.Player().play(url, li)
+    play_url = _apply_stream_hints(li, url, stream) or url
+    xbmc.Player().play(play_url, li)
 
 
 def _stream_sort_key(stream):
@@ -1639,6 +1592,189 @@ def _stream_to_url(stream):
     return None
 
 
+def _kodi_major():
+    """Kodi major version (e.g. 21/22), defaulting to 21 on parse failure.
+
+    inputstream.adaptive's header property changed shape on Kodi 22
+    (stream/manifest_headers → common_headers); the version decides."""
+    try:
+        return int(xbmc.getInfoLabel('System.BuildVersion').split('.')[0])
+    except (TypeError, ValueError):
+        return 21
+
+
+def _inputstream_adaptive_available():
+    """Whether inputstream.adaptive is installed AND enabled.
+
+    System.HasAddon alone has returned True for installed-but-disabled
+    addons since Kodi 19 (xbmc/xbmc#16707), and routing an adaptive
+    stream at a disabled ISA fails playback outright - so both are
+    checked. Any cond-visibility failure degrades to "unavailable";
+    the direct fallback below is always safe."""
+    try:
+        if not xbmc.getCondVisibility(
+                'System.HasAddon(inputstream.adaptive)'):
+            return False
+        return bool(xbmc.getCondVisibility(
+            'System.AddonIsEnabled(inputstream.adaptive)'))
+    except Exception:
+        return False
+
+
+def _split_embedded_headers(url):
+    """Split a resolved url's own '|urlencoded-headers' suffix (the Kodi
+    player-path convention some Stremio addons/resolvers bake straight
+    into the url they return).
+
+    Returns (clean_url, headers_dict); headers empty when none embedded.
+    Lets the ISA path merge these into the proxy headers instead of
+    leaving them in a path suffix inputstream.adaptive never reads, and
+    keeps our own HEAD probe off a '|'-suffixed URL."""
+    if not url or '|' not in url:
+        return url, {}
+    base, _, raw = url.partition('|')
+    if not raw:
+        return base, {}
+    return base, dict(urllib.parse.parse_qsl(raw, keep_blank_values=True))
+
+
+def _request_headers(stream, url):
+    """Merged request-header dict for a stream: behaviorHints.
+    proxyHeaders.request plus any headers baked into the url itself
+    (embedded ones win - they are more specific to the resolved URL)."""
+    hints = stream.get('behaviorHints') or {}
+    headers = dict((hints.get('proxyHeaders') or {}).get('request') or {})
+    _, embedded = _split_embedded_headers(url)
+    headers.update(embedded)
+    return headers
+
+
+def _filename_from_url(url):
+    """Last path segment of a URL, with any baked |headers/query stripped."""
+    base = url.split('|', 1)[0].split('?', 1)[0]
+    return base.rsplit('/', 1)[-1]
+
+
+#: Extension → MIME for the video containers Stremio streams commonly use.
+_MIME_BY_EXT = {
+    '.mkv': 'video/x-matroska', '.mp4': 'video/mp4', '.m4v': 'video/mp4',
+    '.avi': 'video/x-msvideo', '.mov': 'video/quicktime', '.ts': 'video/mp2t',
+    '.m2ts': 'video/mp2t', '.webm': 'video/webm', '.flv': 'video/x-flv',
+    '.wmv': 'video/x-ms-wmv', '.mpg': 'video/mpeg', '.mpeg': 'video/mpeg',
+}
+
+
+def _mime_for_name(name):
+    """Best-effort MIME type from a filename/URL, or None when unknown."""
+    if not name:
+        return None
+    ext = os.path.splitext(name)[1].lower()
+    return _MIME_BY_EXT.get(ext)
+
+
+# Content-Type cache per plugin invocation (url → lowercased ct or None).
+# Playback retries/fallbacks reuse the HEAD result instead of re-requesting.
+_HEAD_CT_CACHE = {}
+
+
+def _stream_content_type(url, stream, headers):
+    """Determine a stream's playback kind: 'hls'|'mpd'|'ism' or None (direct).
+
+    Fast path: known URL extension (checked on the clean, unbaked url).
+    Otherwise a HEAD request carrying the merged proxy/embedded headers
+    decides from Content-Type. plugin:// URLs (Elementum/YouTube) are
+    never probed; while the probe runs a busy dialog keeps the UI alive.
+    """
+    if url.startswith('plugin://'):
+        return None
+    low = url.lower()
+    if low.endswith('.m3u8'):
+        return 'hls'
+    if low.endswith('.mpd'):
+        return 'mpd'
+    if low.endswith('.ism'):
+        return 'ism'
+    if url in _HEAD_CT_CACHE:
+        return _HEAD_CT_CACHE[url]
+    xbmc.executebuiltin('ActivateWindow(busydialog)')
+    try:
+        ct = head_content_type(url, extra_headers=headers or None)
+    finally:
+        xbmc.executebuiltin('Dialog.Close(busydialog,true)')
+    _HEAD_CT_CACHE[url] = ct
+    if not ct:
+        return None
+    if 'mpegurl' in ct or 'hls' in ct:
+        return 'hls'
+    if 'dash+xml' in ct or 'mpd' in ct:
+        return 'mpd'
+    if 'sstr+xml' in ct or 'ism' in ct:
+        return 'ism'
+    return None
+
+
+def _apply_isa_properties(li, kind, headers):
+    """Route the ListItem through inputstream.adaptive: mime + inputstream
+    properties, headers in the property the running Kodi consumes (22+
+    folds stream/manifest_headers into common_headers); below 22 an HLS
+    stream also gets license_key='|<headers>|' so AES-128 key requests
+    carry the headers too (they otherwise 403 - observed live)."""
+    li.setProperty('inputstream', 'inputstream.adaptive')
+    li.setProperty('inputstream.adaptive.manifest_type', kind)
+    if kind == 'hls':
+        li.setMimeType('application/vnd.apple.mpegurl')
+    elif kind == 'mpd':
+        li.setMimeType('application/dash+xml')
+    else:
+        li.setMimeType('application/vnd.ms-sstr+xml')
+    encoded = urllib.parse.urlencode(headers) if headers else ''
+    if not encoded:
+        return
+    if _kodi_major() >= 22:
+        li.setProperty('inputstream.adaptive.common_headers', encoded)
+    else:
+        li.setProperty('inputstream.adaptive.stream_headers', encoded)
+        li.setProperty('inputstream.adaptive.manifest_headers', encoded)
+        if kind == 'hls':
+            li.setProperty(
+                'inputstream.adaptive.license_key', '|{}|'.format(encoded))
+
+
+def _apply_stream_hints(li, url, stream):
+    """Configure ListItem for playback from the stream's proxyHeaders and
+    resolved content type: HLS/DASH/ISM routes through inputstream.adaptive
+    when it is installed and enabled (direct fallback otherwise); direct
+    URLs get Kodi's '|urlencoded-header' query syntax. Kodi's own content
+    probe is disabled since we supply the type up front (and plugin://
+    URLs should not be probed either).
+
+    Returns the effective playback URL (with headers baked in, when any),
+    so callers hand the same URL to xbmc.Player()."""
+    clean_url, _ = _split_embedded_headers(url)
+    headers = _request_headers(stream, url)
+    kind = _stream_content_type(clean_url, stream, headers)
+    li.setContentLookup(False)
+    if kind and _inputstream_adaptive_available():
+        _apply_isa_properties(li, kind, headers)
+        xbmc.log('Stremio2Kodi: routed {} stream via inputstream.adaptive, '
+                 '{} header(s)'.format(kind, len(headers)), xbmc.LOGDEBUG)
+        return clean_url
+    if kind:
+        xbmc.log('Stremio2Kodi: {} stream but inputstream.adaptive '
+                 'unavailable - direct fallback'.format(kind), xbmc.LOGINFO)
+    path = clean_url
+    if headers and not clean_url.startswith('plugin://'):
+        path = '{}|{}'.format(path, urllib.parse.urlencode(headers))
+    if path != url:
+        li.setPath(path)
+    mime = _mime_for_name(_filename_from_url(clean_url))
+    if mime:
+        li.setMimeType(mime)
+    xbmc.log('Stremio2Kodi: direct playback for {}, {} header(s)'.format(
+        clean_url, len(headers)), xbmc.LOGDEBUG)
+    return path
+
+
 def _set_li_metadata(li, meta_info):
     """Apply artwork and video info to a ListItem from meta_info dict."""
     if not meta_info:
@@ -1688,7 +1824,7 @@ def _cache_streams(streams):
         slim.append({
             k: s[k] for k in ('url', 'infoHash', 'name', 'title',
                                'sources', 'fileIdx', 'ytId',
-                               'externalUrl', '_addon')
+                               'externalUrl', 'behaviorHints', '_addon')
             if k in s
         })
     _win_home.setProperty(
@@ -1740,6 +1876,8 @@ def resolve_stream(idx):
     """Resolve a cached stream by index and hand it to Kodi via setResolvedUrl."""
     streams = _get_cached_streams()
     if idx < 0 or idx >= len(streams):
+        xbmcgui.Dialog().notification(
+            ADDON_NAME, L(30033), xbmcgui.NOTIFICATION_ERROR)
         xbmcplugin.setResolvedUrl(HANDLE, False, xbmcgui.ListItem())
         return
 
@@ -1754,10 +1892,13 @@ def resolve_stream(idx):
 
     url = _stream_to_url(stream)
     if not url:
+        xbmcgui.Dialog().notification(
+            ADDON_NAME, L(30033), xbmcgui.NOTIFICATION_ERROR)
         xbmcplugin.setResolvedUrl(HANDLE, False, xbmcgui.ListItem())
         return
 
     li = xbmcgui.ListItem(path=url)
+    _apply_stream_hints(li, url, stream)
     xbmcplugin.setResolvedUrl(HANDLE, True, li)
 
 
