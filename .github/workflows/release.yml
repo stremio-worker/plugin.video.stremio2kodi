@@ -68,6 +68,7 @@ jobs:
           echo "::warning::Release not yet propagated after 30s, dispatching anyway"
 
       - name: Trigger repository update
+        if: secrets.REPO_DISPATCH_TOKEN != ''
         run: |
           curl -X POST \
             -H "Authorization: token ${{ secrets.REPO_DISPATCH_TOKEN }}" \

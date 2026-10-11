@@ -7,7 +7,7 @@ Browse and stream content from Stremio add-ons within Kodi.
 - Browse catalogs from any Stremio add-on
 - Stream movies and series with quality/language sorting
 - HDR, Dolby Vision, IMAX, Remux detection and prioritization
-- Auto-play with fallback to next best stream
+- Subtitles support: fetch from Stremio add-ons, language filter, readable OSD track names
 - TMDbHelper integration for metadata and search
 - Multi-language support (English, Spanish)
 - Parallel stream searching across multiple add-ons
@@ -27,7 +27,8 @@ Browse and stream content from Stremio add-ons within Kodi.
 
 ## Configuration
 
-- **Auto-play best stream** – Automatically plays the best match based on your preferences
+- **Fetch subtitles from addons** – Download subtitle tracks from Stremio add-ons (toggleable)
+- **Subtitle languages** – Filter subtitles by comma-separated ISO codes (e.g. `eng, tur`); leave empty for all
 - **Sort order** – Language → Quality → Size (default), or Quality/Size first
 - **Preferred language** – Auto-detect from Kodi or manual selection
 - **Preferred quality** – Best available, 4K, 1080p, or 720p
