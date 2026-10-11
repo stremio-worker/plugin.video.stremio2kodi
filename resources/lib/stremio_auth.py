@@ -18,6 +18,9 @@ _LOGIN_API = 'https://api.strem.io/api/loginWithToken'
 _COLLECTION_API = 'https://api.strem.io/api/addonCollectionGet'
 _TIMEOUT = 10
 
+#: PNG file signature, used to reject non-image QR downloads.
+_PNG_MAGIC = b'\x89PNG\r\n\x1a\n'
+
 
 def create_link(timeout=_TIMEOUT):
     """Request a new device-login code. Returns the 'result' dict or None."""
@@ -63,10 +66,22 @@ def login_with_token(token, timeout=_TIMEOUT):
 
 
 def download_qr(url, dest_path, timeout=_TIMEOUT):
-    """Download the QR PNG at ``url`` to ``dest_path``. True on success."""
+    """Download the QR PNG at ``url`` to ``dest_path``. True on success.
+
+    The body is decompressed (the CDN may gzip even images) and checked
+    against the PNG signature: Kodi renders nothing for a corrupt file, so a
+    bad download is reported instead of silently written.
+    """
     req = urllib.request.Request(url, headers=BROWSER_HEADERS)
     with urllib.request.urlopen(req, timeout=timeout) as response:
-        body = response.read()
+        body = decode_body(response)
+        content_type = response.headers.get('Content-Type') or ''
+    if not body.startswith(_PNG_MAGIC):
+        xbmc.log(
+            'Stremio2Kodi: QR download is not a PNG (content-type={!r}, '
+            '{} bytes, first={!r})'.format(
+                content_type, len(body), body[:16]), xbmc.LOGWARNING)
+        return False
     with open(dest_path, 'wb') as handle:
         handle.write(body)
     return True
