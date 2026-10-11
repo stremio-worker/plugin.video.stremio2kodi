@@ -158,3 +158,38 @@ class StremioClient:
             if isinstance(r, dict) and r.get('name') == resource_name:
                 return True
         return False
+
+    def serves_resource(self, manifest, resource_name, type_=None, id_=None):
+        """Check if a resource entry serves the given type and id prefix.
+
+        Per the Stremio Add-on Protocol a resource is either a plain string
+        ("stream") or an object that may declare its own ``types`` and
+        ``idPrefixes``; per-resource values fall back to the manifest-level
+        ones. When neither is declared the resource is universal (serves any
+        type/id). ``id_`` is matched as a string prefix against ``idPrefixes``.
+        """
+        entry = None
+        for r in manifest.get('resources', []):
+            if isinstance(r, str):
+                if r == resource_name:
+                    entry = {'name': resource_name}
+                    break
+            elif isinstance(r, dict) and r.get('name') == resource_name:
+                entry = r
+                break
+        if entry is None:
+            return False
+
+        types = entry.get('types')
+        if not types:
+            types = manifest.get('types')
+        if types and type_ is not None and type_ not in types:
+            return False
+
+        prefixes = entry.get('idPrefixes')
+        if not prefixes:
+            prefixes = manifest.get('idPrefixes')
+        if prefixes and id_ is not None \
+                and not any(id_.startswith(p) for p in prefixes):
+            return False
+        return True

@@ -797,8 +797,9 @@ def _add_meta_item(meta, fallback_type, addon_idx):
     set_video_info(li, info)
 
     meta_type = meta.get('type', fallback_type)
-    # Prefer imdb_id; fall back to id only if it looks like a valid IMDB ID
-    raw_id = meta.get('imdb_id') or meta.get('id', '')
+    # Canonical Stremio id first: the stream request must use the meta id,
+    # not the supplemental imdb_id (which may belong to another namespace).
+    raw_id = meta.get('id') or meta.get('imdb_id', '')
     has_imdb = raw_id.startswith('tt')
 
     if meta_type in ('series', 'tv'):
@@ -839,15 +840,16 @@ def show_seasons(addon_idx, meta_type, meta_id):
     for s in seasons:
         label = (L(30023) or 'Specials') if s == 0 else L(30020).format(s)
         add_dir(label, 'episodes',
-                type=meta_type, id=meta_id, season=str(s))
+                type=meta_type, id=meta_id, season=str(s),
+                idx=str(addon_idx))
 
     xbmcplugin.setContent(HANDLE, 'seasons')
     xbmcplugin.endOfDirectory(HANDLE)
 
 
-def show_episodes(meta_type, meta_id, season):
+def show_episodes(meta_type, meta_id, season, addon_idx=None):
     """Show episodes for a given season."""
-    videos = _fetch_videos(None, meta_type, meta_id)
+    videos = _fetch_videos(addon_idx, meta_type, meta_id)
     if not videos:
         xbmcplugin.endOfDirectory(HANDLE)
         return
@@ -870,8 +872,11 @@ def show_episodes(meta_type, meta_id, season):
         if ep.get('thumbnail'):
             li.setArt({'thumb': ep['thumbnail']})
 
-        url = build_url('play_episode', imdb_id=meta_id,
-                        season=str(season), episode=str(ep_num))
+        play_params = dict(imdb_id=meta_id,
+                           season=str(season), episode=str(ep_num))
+        if addon_idx is not None:
+            play_params['aidx'] = str(addon_idx)
+        url = build_url('play_episode', **play_params)
         xbmcplugin.addDirectoryItem(HANDLE, url, li, isFolder=False)
 
     xbmcplugin.setContent(HANDLE, 'episodes')
@@ -890,7 +895,8 @@ def _fetch_videos(preferred_idx, meta_type, meta_id):
         if _monitor.abortRequested():
             return None
         manifest = _get_manifest(addons[i]['url'])
-        if not manifest or not stremio.has_resource(manifest, 'meta'):
+        if not manifest or not stremio.serves_resource(manifest, 'meta',
+                                                       meta_type, meta_id):
             continue
         result = _get_meta_cached(addons[i]['url'], meta_type, meta_id)
         if result and result.get('meta', {}).get('videos'):
@@ -899,19 +905,45 @@ def _fetch_videos(preferred_idx, meta_type, meta_id):
 
 
 def play_movie(imdb_id, stream_type='movie', addon_idx=None, meta_info=None):
-    # For non-IMDB IDs, try fetching meta with embedded streams first
-    if not imdb_id.startswith('tt') and addon_idx is not None:
-        if _play_from_meta(stream_type, imdb_id, addon_idx, meta_info=meta_info):
+    meta_info = meta_info or {}
+    xbmc.log('Stremio2Kodi: play_movie: id={} type={} addon_idx={}'.format(
+        imdb_id, stream_type, addon_idx), xbmc.LOGDEBUG)
+    # Per the Stremio protocol the stream id is the canonical meta id.
+    meta = _resolve_meta(stream_type, imdb_id, addon_idx, meta_info)
+    stream_id = (meta or {}).get('id') or imdb_id
+    xbmc.log('Stremio2Kodi: play_movie: resolved stream_id={} (meta={})'.format(
+        stream_id, bool(meta)), xbmc.LOGDEBUG)
+    # For non-IMDB IDs, try meta-embedded streams first (reuse the meta).
+    if not stream_id.startswith('tt') and addon_idx is not None:
+        xbmc.log(
+            'Stremio2Kodi: play_movie: non-tt id, trying embedded meta '
+            'streams', xbmc.LOGDEBUG)
+        if _play_from_meta(stream_type, stream_id, addon_idx,
+                           meta_info=meta_info, meta=meta):
+            xbmc.log('Stremio2Kodi: play_movie: played via embedded meta '
+                     'streams', xbmc.LOGDEBUG)
             return
-    _play_streams(stream_type, imdb_id, addon_idx=addon_idx, meta_info=meta_info)
+        xbmc.log('Stremio2Kodi: play_movie: no embedded streams, falling '
+                 'back to stream search', xbmc.LOGDEBUG)
+    # Stream search covers every add-on whose manifest matches type/prefix;
+    # the addon_idx restriction belongs to embedded-stream meta lookups only.
+    _play_streams(stream_type, stream_id, meta_info=meta_info)
 
 
-def play_episode(imdb_id, season, episode, meta_info=None):
-    stream_id = '{}:{}:{}'.format(imdb_id, season, episode)
+def play_episode(imdb_id, season, episode, meta_info=None, addon_idx=None):
+    meta_info = meta_info or {}
+    xbmc.log('Stremio2Kodi: play_episode: id={} season={} episode={} '
+             'addon_idx={}'.format(imdb_id, season, episode, addon_idx),
+             xbmc.LOGDEBUG)
+    meta = _resolve_meta('series', imdb_id, addon_idx, meta_info)
+    stream_id = _episode_stream_id(meta, season, episode) or \
+        '{}:{}:{}'.format(imdb_id, season, episode)
+    xbmc.log('Stremio2Kodi: play_episode: resolved stream_id={} '
+             '(meta={})'.format(stream_id, bool(meta)), xbmc.LOGDEBUG)
     _play_streams('series', stream_id, meta_info=meta_info)
 
 
-def _play_from_meta(meta_type, meta_id, addon_idx, meta_info=None):
+def _play_from_meta(meta_type, meta_id, addon_idx, meta_info=None, meta=None):
     """Try to play a non-IMDB item using embedded streams from its meta.
 
     Some Stremio add-ons (e.g. Peerflix/RealDebrid) expose catalog items
@@ -920,14 +952,24 @@ def _play_from_meta(meta_type, meta_id, addon_idx, meta_info=None):
     """
     addons = addon_mgr.get_addons()
     if addon_idx >= len(addons):
+        xbmc.log('Stremio2Kodi: _play_from_meta: invalid addon_idx={} '
+                 '({} addons)'.format(addon_idx, len(addons)),
+                 xbmc.LOGWARNING)
         return False
 
-    result = _get_meta_cached(addons[addon_idx]['url'], meta_type, meta_id)
-    if not result or not result.get('meta'):
-        return False
-
-    meta = result['meta']
-    videos = meta.get('videos', [])
+    videos = (meta or {}).get('videos', [])
+    if not videos:
+        # Fall back to the catalog add-on, which owns the embedded streams.
+        xbmc.log('Stremio2Kodi: _play_from_meta: fetching meta from catalog '
+                 'addon idx={} type={} id={}'.format(
+                     addon_idx, meta_type, meta_id), xbmc.LOGDEBUG)
+        result = _get_meta_cached(addons[addon_idx]['url'], meta_type, meta_id)
+        if not result or not result.get('meta'):
+            xbmc.log('Stremio2Kodi: _play_from_meta: no meta for type={} '
+                     'id={}'.format(meta_type, meta_id), xbmc.LOGWARNING)
+            return False
+        meta = result['meta']
+        videos = meta.get('videos', [])
 
     # Enrich meta_info from the fetched meta
     if meta_info is None:
@@ -945,7 +987,14 @@ def _play_from_meta(meta_type, meta_id, addon_idx, meta_info=None):
             all_streams.append(stream)
 
     if not all_streams:
+        xbmc.log('Stremio2Kodi: _play_from_meta: no embedded streams in meta '
+                 'type={} id={} ({} videos)'.format(
+                     meta_type, meta_id, len(videos)), xbmc.LOGWARNING)
         return False
+
+    xbmc.log('Stremio2Kodi: _play_from_meta: collected {} embedded streams '
+             'type={} id={}'.format(len(all_streams), meta_type, meta_id),
+             xbmc.LOGDEBUG)
 
     selected = _pick_stream(all_streams)
     if selected < 0:
@@ -1200,31 +1249,78 @@ def _enrich_catalog_tmdb(metas, cat_type):
                 _apply_tmdb_to_meta(catalog_meta, results[0])
 
 
-def _enrich_meta_info(meta_info, stream_type, stream_id, addons):
-    """Try to fetch plot/fanart/poster from Stremio meta for IMDB items."""
-    base_id = stream_id.split(':')[0]
+def _meta_addon_order(addons, addon_idx=None, type_=None, base_id=None):
+    """Return add-ons that expose a meta resource, best candidate first.
+
+    Priority: the catalog add-on, the user-chosen meta add-on, then the rest.
+    When ``type_``/``base_id`` are given, only add-ons whose meta resource
+    serves that type and id prefix are kept.
+    """
+    order = []
+    seen = set()
+
+    def _push(info):
+        url = info.get('url') if info else None
+        if url and url not in seen:
+            seen.add(url)
+            order.append(info)
+
+    if addon_idx is not None and 0 <= addon_idx < len(addons):
+        _push(addons[addon_idx])
     saved = ADDON.getSetting('meta_addon_url')
     if saved:
-        try:
-            result = _get_meta_cached(saved, stream_type, base_id)
-            if result and result.get('meta'):
-                _merge_stremio_meta(meta_info, result['meta'])
-                return
-        except Exception:
-            pass
-    for addon_info in addons:
+        for info in addons:
+            if info.get('url') == saved:
+                _push(info)
+                break
+    for info in addons:
+        _push(info)
+
+    usable = []
+    for info in order:
+        manifest = _get_manifest(info['url'])
+        if manifest and stremio.serves_resource(manifest, 'meta',
+                                                type_, base_id):
+            usable.append(info)
+    return usable
+
+
+def _resolve_meta(stream_type, base_id, addon_idx, meta_info):
+    """Fetch Stremio meta for an item and merge it into meta_info.
+
+    Per the Stremio protocol the stream id is the canonical meta id, so the
+    fetched meta is the source of truth. Returns the meta dict or None.
+    """
+    if not base_id:
+        return None
+    addons = addon_mgr.get_addons()
+    if not addons:
+        return None
+
+    for addon_info in _meta_addon_order(addons, addon_idx,
+                                        stream_type, base_id):
         if _monitor.abortRequested():
-            return
-        manifest = _get_manifest(addon_info['url'])
-        if not manifest or not stremio.has_resource(manifest, 'meta'):
-            continue
+            return None
         try:
             result = _get_meta_cached(addon_info['url'], stream_type, base_id)
         except Exception:
             continue
         if result and result.get('meta'):
-            _merge_stremio_meta(meta_info, result['meta'])
-            return
+            meta = result['meta']
+            _merge_stremio_meta(meta_info, meta)
+            return meta
+    return None
+
+
+def _episode_stream_id(meta, season, episode):
+    """Return the meta-defined stream id for a season/episode, if present."""
+    if not meta:
+        return None
+    for video in meta.get('videos', []):
+        if (str(video.get('season')) == str(season)
+                and str(video.get('episode')) == str(episode)):
+            return video.get('id')
+    return None
 
 
 def _play_streams(stream_type, stream_id, addon_idx=None, meta_info=None):
@@ -1236,15 +1332,21 @@ def _play_streams(stream_type, stream_id, addon_idx=None, meta_info=None):
     if meta_info is None:
         meta_info = {}
 
-    addons = addon_mgr.get_addons()
-    if stream_id.startswith('tt') and not meta_info.get('plot') and addons:
-        _enrich_meta_info(meta_info, stream_type, stream_id, addons)
+    xbmc.log('Stremio2Kodi: _play_streams: type={} id={} addon_idx={}'.format(
+        stream_type, stream_id, addon_idx), xbmc.LOGDEBUG)
 
     all_streams = _search_streams(stream_type, stream_id, addon_idx=addon_idx)
+    count = len(all_streams) if all_streams else 0
+    xbmc.log('Stremio2Kodi: _play_streams: got {} streams for type={} '
+             'id={}'.format(count, stream_type, stream_id), xbmc.LOGDEBUG)
     if not all_streams:
+        xbmc.log('Stremio2Kodi: _play_streams: no streams for type={} '
+                 'id={}'.format(stream_type, stream_id), xbmc.LOGWARNING)
         return
 
     selected = _pick_stream(all_streams)
+    xbmc.log('Stremio2Kodi: _play_streams: selected={} auto_play={}'.format(
+        selected, _AUTO_PLAY), xbmc.LOGDEBUG)
     if selected < 0:
         return
 
@@ -1252,7 +1354,12 @@ def _play_streams(stream_type, stream_id, addon_idx=None, meta_info=None):
         # Try each stream in sorted order, fall back on failure
         for i in range(selected, len(all_streams)):
             if _try_play(all_streams[i], meta_info=meta_info):
+                xbmc.log('Stremio2Kodi: _play_streams: playback started with '
+                         'stream #{}'.format(i), xbmc.LOGDEBUG)
                 return
+        xbmc.log('Stremio2Kodi: _play_streams: all streams failed for '
+                 'type={} id={}'.format(stream_type, stream_id),
+                 xbmc.LOGWARNING)
         xbmcgui.Dialog().notification(
             ADDON_NAME, L(30033),
             xbmcgui.NOTIFICATION_ERROR)
@@ -1596,12 +1703,22 @@ def _get_cached_streams():
     return []
 
 
-def list_streams(stream_type, stream_id):
+def list_streams(stream_type, stream_id, base_id=None, season=None,
+                 episode=None):
     """Search addons for streams and return them as a Kodi directory listing.
 
     Used by TMDbHelper's dialog step — returns items for TMDbHelper to
     present in its own selection dialog.
     """
+    # Stream id always comes from the meta (Stremio default behaviour).
+    meta_info = {}
+    meta = _resolve_meta(stream_type, base_id or stream_id, None, meta_info)
+    if meta:
+        if season is not None and episode is not None:
+            stream_id = _episode_stream_id(meta, season, episode) or stream_id
+        else:
+            stream_id = meta.get('id') or stream_id
+
     all_streams = _search_streams(stream_type, stream_id)
     if not all_streams:
         xbmcplugin.endOfDirectory(HANDLE, succeeded=False)
@@ -1661,6 +1778,10 @@ def _search_streams(stream_type, stream_id, addon_idx=None):
     else:
         indices = list(range(len(addons)))
 
+    xbmc.log('Stremio2Kodi: _search_streams: type={} id={} addon_idx={} '
+             'candidates={}'.format(stream_type, stream_id, addon_idx,
+                                    len(indices)), xbmc.LOGDEBUG)
+
     timeout = stremio.timeout
     workers = min(_MAX_WORKERS, len(indices))
 
@@ -1673,8 +1794,10 @@ def _search_streams(stream_type, stream_id, addon_idx=None):
 
     # --- Phase 1: parallel manifest check (cached = instant) ----------------
     def _check_manifest(i):
+        """Keep add-ons whose stream resource serves this type/id prefix."""
         manifest = _get_manifest(addons[i]['url'])
-        if manifest and stremio.has_resource(manifest, 'stream'):
+        if manifest and stremio.serves_resource(manifest, 'stream',
+                                                stream_type, stream_id):
             return i, manifest
         return i, None
 
@@ -1698,6 +1821,12 @@ def _search_streams(stream_type, stream_id, addon_idx=None):
         except (FuturesTimeoutError, TimeoutError):
             xbmc.log('Stremio2Kodi: manifest check timed out',
                      xbmc.LOGWARNING)
+
+    xbmc.log('Stremio2Kodi: _search_streams: {} of {} addons match type/prefix'
+             .format(len(filtered), len(indices)), xbmc.LOGDEBUG)
+    if filtered:
+        xbmc.log('Stremio2Kodi: _search_streams: matched addons: {}'.format(
+            ', '.join(labels[i] for i, _ in filtered)), xbmc.LOGDEBUG)
 
     if cancelled or not filtered:
         progress.close()
@@ -1765,6 +1894,10 @@ def _search_streams(stream_type, stream_id, addon_idx=None):
                      xbmc.LOGWARNING)
 
     progress.close()
+
+    xbmc.log('Stremio2Kodi: _search_streams: returning {} streams for '
+             'type={} id={}'.format(len(all_streams), stream_type, stream_id),
+             xbmc.LOGDEBUG)
 
     if not all_streams and not cancelled:
         xbmcgui.Dialog().notification(
@@ -1965,7 +2098,8 @@ def _dispatch(action, params):
         show_seasons(int(params.get('idx', 0)),
                      params['type'], params['id'])
     elif action == 'episodes':
-        show_episodes(params['type'], params['id'], params['season'])
+        show_episodes(params['type'], params['id'], params['season'],
+                      int(params['aidx']) if 'aidx' in params else None)
     elif action == 'play_movie':
         meta_info = {k: params[k] for k in ('title', 'year', 'poster', 'fanart')
                      if k in params}
@@ -1984,17 +2118,17 @@ def _dispatch(action, params):
             meta_info['imdbnumber'] = imdb_id
         meta_info['mediatype'] = 'episode'
         play_episode(imdb_id, params['season'], params['episode'],
-                     meta_info=meta_info or None)
+                     meta_info=meta_info or None,
+                     addon_idx=int(params['aidx']) if 'aidx' in params else None)
     elif action == 'list_streams':
         # TMDbHelper dialog-step path
         stream_type = params.get('type', 'movie')
         imdb_id = params['imdb_id']
         if 'season' in params and 'episode' in params:
-            stream_id = '{}:{}:{}'.format(
-                imdb_id, params['season'], params['episode'])
+            list_streams(stream_type, imdb_id, base_id=imdb_id,
+                         season=params['season'], episode=params['episode'])
         else:
-            stream_id = imdb_id
-        list_streams(stream_type, stream_id)
+            list_streams(stream_type, imdb_id, base_id=imdb_id)
     elif action == 'resolve':
         resolve_stream(int(params['idx']))
     elif action == 'manage':
