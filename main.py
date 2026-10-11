@@ -465,6 +465,7 @@ def addons_sync():
     xbmc.log('Stremio2Kodi: addons_sync: {} addons to install'.format(total),
              xbmc.LOGINFO)
     ok = 0
+    already = 0
     failed = 0
     cancelled = False
     for index, entry in enumerate(addons):
@@ -499,29 +500,35 @@ def addons_sync():
             if addon_mgr.add_addon(base_url, fetched.get('name', name)):
                 ok += 1
             else:
-                xbmc.log('Stremio2Kodi: addons_sync: skip (already installed): {}'
-                         .format(name), xbmc.LOGINFO)
+                already += 1
+                xbmc.log(
+                    'Stremio2Kodi: addons_sync: already installed: {}'
+                    .format(name), xbmc.LOGINFO)
         except Exception as e:
             xbmc.log('Stremio2Kodi: addons_sync: error on {}: {}'.format(
                 name, e), xbmc.LOGERROR)
             failed += 1
+
+    # An addon counts as installed when it was added now or already present.
+    installed = ok + already
 
     if cancelled:
         # Canceled: close right away, do not update the dialog again.
         progress.close()
     else:
         # Show the summary on the dialog briefly, then close it cleanly.
-        progress.update(100, L(30155).format(ok, total))
+        progress.update(100, L(30155).format(installed, total))
         time.sleep(0.8)
         progress.close()
     # Give the GUI a beat to remove the modal before the notification.
     time.sleep(0.2)
 
-    save_sync_record(total=total, ok=ok)
-    xbmc.log('Stremio2Kodi: addons_sync: finished ok={} failed={} '
-             'cancelled={}'.format(ok, failed, cancelled), xbmc.LOGINFO)
-    summary = L(30157).format(ok, total) if cancelled \
-        else L(30155).format(ok, total)
+    save_sync_record(total=total, ok=installed)
+    xbmc.log('Stremio2Kodi: addons_sync: finished installed={} new={} '
+             'already={} failed={} cancelled={}'.format(
+                 installed, ok, already, failed, cancelled), xbmc.LOGINFO)
+    summary = L(30157).format(installed, total) if cancelled \
+        else L(30155).format(installed, total)
     xbmcgui.Dialog().notification(
         ADDON_NAME, summary, xbmcgui.NOTIFICATION_INFO)
     xbmc.executebuiltin('Container.Refresh')
