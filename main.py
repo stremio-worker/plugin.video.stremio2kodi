@@ -476,8 +476,7 @@ def addons_sync():
             or transport_url or ''
         progress.update(
             int((index + 1) * 100 / total),
-            name,
-            L(30153).format(index + 1, total))
+            '{}\n{}'.format(name, L(30153).format(index + 1, total)))
         if not transport_url:
             xbmc.log('Stremio2Kodi: addons_sync: skip (no url): {}'.format(name),
                      xbmc.LOGINFO)
@@ -503,7 +502,7 @@ def addons_sync():
             failed += 1
 
     # Hold the finished dialog briefly so even instant runs are visible.
-    progress.update(100, L(30155).format(ok, total), '')
+    progress.update(100, L(30155).format(ok, total))
     _monitor.waitForAbort(1000)
     progress.close()
 
