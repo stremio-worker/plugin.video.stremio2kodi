@@ -40,7 +40,8 @@ EXCLUDE_GLOBS = ('*.pyc', '*.pyo', '.DS_Store')
 # this set and not included above triggers a warning.
 DEV_ONLY_ROOT = frozenset({
     '.git', '.github', '.gitignore', '.idea', '.vscode',
-    'AGENTS.md', 'README.md', 'scripts', 'dist', 'build', '__pycache__',
+    'AGENTS.md', 'CHANGELOG.md', 'README.md', 'scripts', 'dist', 'build',
+    '__pycache__',
 })
 
 
