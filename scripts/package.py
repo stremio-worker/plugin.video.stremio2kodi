@@ -28,7 +28,8 @@ DIST_DIR = os.path.join(ROOT, 'dist')
 
 # --- Runtime content that belongs in the add-on zip (allowlist) -------------
 # Top-level files to ship; missing ones are simply skipped.
-INCLUDE_FILES = ('addon.xml', 'main.py', 'icon.png', 'fanart.jpg', 'LICENSE')
+INCLUDE_FILES = ('addon.xml', 'main.py', 'service.py', 'icon.png',
+                 'fanart.jpg', 'LICENSE')
 # Top-level directories to ship (recursively).
 INCLUDE_DIRS = ('resources',)
 

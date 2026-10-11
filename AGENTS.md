@@ -56,11 +56,11 @@ must be added to the same numeric `msgctxt` in **both**
 ## Packaging
 
 `scripts/package.py` builds the installable zip into `dist/` from an allowlist of
-runtime files (`addon.xml`, `main.py`, `icon.png`, `fanart.jpg`, `LICENSE`,
-`resources/`); id/version come from `addon.xml`, and a warning is printed for any
-unclassified top-level entry. Wrappers: `scripts/build.sh [--dev]` and
-`scripts/clean.sh`. These are plain Python/bash and run outside Kodi; they are the
-single source of truth for archive naming.
+runtime files (`addon.xml`, `main.py`, `service.py`, `icon.png`, `fanart.jpg`,
+`LICENSE`, `resources/`); id/version come from `addon.xml`, and a warning is
+printed for any unclassified top-level entry. Wrappers: `scripts/build.sh
+[--dev]` and `scripts/clean.sh`. These are plain Python/bash and run outside
+Kodi; they are the single source of truth for archive naming.
 
 ## Release is automatic on push
 
