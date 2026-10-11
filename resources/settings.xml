@@ -23,6 +23,9 @@
                 <setting id="meta_addon_url" type="string" label="30125" help="">
                     <level>0</level>
                     <default></default>
+                    <constraints>
+                        <allowempty>true</allowempty>
+                    </constraints>
                     <dependencies>
                         <dependency type="visible" setting="enrich_metadata" operator="is">1</dependency>
                     </dependencies>
@@ -66,36 +69,54 @@
                     <level>4</level>
                     <visible>false</visible>
                     <default></default>
+                    <constraints>
+                        <allowempty>true</allowempty>
+                    </constraints>
                     <control type="edit" format="string"/>
                 </setting>
                 <setting id="account_email" type="string" label="30130" help="">
                     <level>4</level>
                     <visible>false</visible>
                     <default></default>
+                    <constraints>
+                        <allowempty>true</allowempty>
+                    </constraints>
                     <control type="edit" format="string"/>
                 </setting>
                 <setting id="login_time" type="string" label="30130" help="">
                     <level>4</level>
                     <visible>false</visible>
                     <default></default>
+                    <constraints>
+                        <allowempty>true</allowempty>
+                    </constraints>
                     <control type="edit" format="string"/>
                 </setting>
                 <setting id="sync_total" type="string" label="30130" help="">
                     <level>4</level>
                     <visible>false</visible>
                     <default></default>
+                    <constraints>
+                        <allowempty>true</allowempty>
+                    </constraints>
                     <control type="edit" format="string"/>
                 </setting>
                 <setting id="sync_ok" type="string" label="30130" help="">
                     <level>4</level>
                     <visible>false</visible>
                     <default></default>
+                    <constraints>
+                        <allowempty>true</allowempty>
+                    </constraints>
                     <control type="edit" format="string"/>
                 </setting>
                 <setting id="sync_time" type="string" label="30130" help="">
                     <level>4</level>
                     <visible>false</visible>
                     <default></default>
+                    <constraints>
+                        <allowempty>true</allowempty>
+                    </constraints>
                     <control type="edit" format="string"/>
                 </setting>
             </group>
