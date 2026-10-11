@@ -6,7 +6,6 @@ import os
 import time
 import traceback
 import urllib.parse
-import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
 
 import xbmc
@@ -22,7 +21,7 @@ _FALLBACK_ICON = os.path.join(
     xbmcvfs.translatePath(ADDON.getAddonInfo('path')), 'icon.png')
 sys.path.insert(0, os.path.join(ADDON_PATH, 'resources', 'lib'))
 
-from stremio import StremioClient           # noqa: E402
+from stremio import StremioClient, open_json  # noqa: E402
 from addon_manager import AddonManager      # noqa: E402
 from player_setup import install_player_file  # noqa: E402
 
@@ -945,9 +944,7 @@ def _tmdb_find_cached(imdb_id, api_key):
         _TMDB_API_BASE, urllib.parse.quote(imdb_id), api_key,
         _KODI_LANG or 'en')
     try:
-        req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
+        data = open_json(url, timeout=5)
         _cache_set(cache_key, data, _META_CACHE_TTL)
         return data
     except Exception:

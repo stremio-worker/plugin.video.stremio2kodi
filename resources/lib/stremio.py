@@ -1,8 +1,55 @@
+import gzip
 import json
+import urllib.error
 import urllib.parse
 import urllib.request
-import urllib.error
+import zlib
+
 import xbmc
+
+# Realistic desktop Google Chrome (Windows) request headers so add-on servers
+# see the requests as coming from a normal browser instead of a bare client.
+# Accept-Encoding is intentionally limited to gzip/deflate: brotli (br) and
+# zstd are not guaranteed to be available in Kodi's bundled Python, so we only
+# advertise what decode_body() can transparently decompress.
+CHROME_USER_AGENT = (
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+    '(KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36'
+)
+
+BROWSER_HEADERS = {
+    'User-Agent': CHROME_USER_AGENT,
+    'Accept': 'application/json, text/plain, */*',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate',
+    'sec-ch-ua': '"Chromium";v="156", "Not_A Brand";v="24"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+    'Sec-Fetch-Dest': 'empty',
+    'Sec-Fetch-Mode': 'cors',
+    'Sec-Fetch-Site': 'cross-site',
+}
+
+
+def decode_body(response):
+    """Return the raw response body, decompressing gzip/deflate when needed."""
+    body = response.read()
+    encoding = (response.headers.get('Content-Encoding') or '').lower()
+    if encoding == 'gzip':
+        return gzip.decompress(body)
+    if encoding == 'deflate':
+        try:
+            return zlib.decompress(body)
+        except zlib.error:
+            return zlib.decompress(body, -zlib.MAX_WBITS)
+    return body
+
+
+def open_json(url, timeout=15):
+    """GET a URL with browser-like headers and return the parsed JSON body."""
+    req = urllib.request.Request(url, headers=BROWSER_HEADERS)
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+        return json.loads(decode_body(response).decode('utf-8'))
 
 
 class StremioClient:
@@ -27,12 +74,7 @@ class StremioClient:
         if xbmc.Monitor().abortRequested():
             return None
         try:
-            req = urllib.request.Request(url)
-            req.add_header('User-Agent', 'Stremio2Kodi/1.0')
-            req.add_header('Accept', 'application/json')
-            with urllib.request.urlopen(req, timeout=timeout or self.timeout) as response:
-                data = response.read().decode('utf-8')
-                return json.loads(data)
+            return open_json(url, timeout=timeout or self.timeout)
         except urllib.error.HTTPError as e:
             xbmc.log(
                 'Stremio2Kodi: HTTP {} for {}'.format(e.code, url),
