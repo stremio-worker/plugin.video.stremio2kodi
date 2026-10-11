@@ -455,8 +455,12 @@ def account_info():
     xbmcgui.Dialog().textviewer(L(30131), '\n'.join(lines))
 
 
-def addons_sync():
-    """Install the logged-in Stremio account's add-on collection."""
+def addons_sync(silent=False):
+    """Install the logged-in Stremio account's add-on collection.
+
+    ``silent=True`` (used by the background service) skips the progress
+    dialog and the container refresh; the summary notification stays.
+    """
     from stremio_auth import fetch_addon_collection
 
     account = get_account()
@@ -465,19 +469,23 @@ def addons_sync():
             ADDON_NAME, L(30151), xbmcgui.NOTIFICATION_WARNING)
         return
 
-    progress = xbmcgui.DialogProgress()
-    progress.create(ADDON_NAME, L(30152))
+    progress = None
+    if not silent:
+        progress = xbmcgui.DialogProgress()
+        progress.create(ADDON_NAME, L(30152))
 
     addons, _last_modified = fetch_addon_collection(account['auth_key'])
     if addons is None:
-        progress.close()
+        if progress is not None:
+            progress.close()
         xbmcgui.Dialog().notification(
             ADDON_NAME, L(30154), xbmcgui.NOTIFICATION_ERROR)
         return
 
     total = len(addons)
     if total == 0:
-        progress.close()
+        if progress is not None:
+            progress.close()
         xbmcgui.Dialog().notification(
             ADDON_NAME, L(30156), xbmcgui.NOTIFICATION_INFO)
         return
@@ -489,7 +497,7 @@ def addons_sync():
     failed = 0
     cancelled = False
     for index, entry in enumerate(addons):
-        if progress.iscanceled():
+        if progress is not None and progress.iscanceled():
             cancelled = True
             break
         entry = entry or {}
@@ -497,9 +505,10 @@ def addons_sync():
         manifest = entry.get('manifest') or {}
         name = manifest.get('name') or entry.get('transportName') \
             or transport_url or ''
-        progress.update(
-            int((index + 1) * 100 / total),
-            '{}\n{}'.format(name, L(30153).format(index + 1, total)))
+        if progress is not None:
+            progress.update(
+                int((index + 1) * 100 / total),
+                '{}\n{}'.format(name, L(30153).format(index + 1, total)))
         if not transport_url:
             xbmc.log('Stremio2Kodi: addons_sync: skip (no url): {}'.format(name),
                      xbmc.LOGINFO)
@@ -509,7 +518,7 @@ def addons_sync():
             # Standard install flow: validate the manifest before adding.
             base_url = stremio.normalize_url(transport_url)
             fetched = _get_manifest(base_url)
-            if progress.iscanceled():
+            if progress is not None and progress.iscanceled():
                 cancelled = True
                 break
             if not fetched:
@@ -532,26 +541,29 @@ def addons_sync():
     # An addon counts as installed when it was added now or already present.
     installed = ok + already
 
-    if cancelled:
-        # Canceled: close right away, do not update the dialog again.
-        progress.close()
-    else:
-        # Show the summary on the dialog briefly, then close it cleanly.
-        progress.update(100, L(30155).format(installed, total))
-        time.sleep(0.8)
-        progress.close()
-    # Give the GUI a beat to remove the modal before the notification.
-    time.sleep(0.2)
+    if progress is not None:
+        if cancelled:
+            # Canceled: close right away, do not update the dialog again.
+            progress.close()
+        else:
+            # Show the summary on the dialog briefly, then close it cleanly.
+            progress.update(100, L(30155).format(installed, total))
+            time.sleep(0.8)
+            progress.close()
+        # Give the GUI a beat to remove the modal before the notification.
+        time.sleep(0.2)
 
     save_sync_record(total=total, ok=installed)
     xbmc.log('Stremio2Kodi: addons_sync: finished installed={} new={} '
-             'already={} failed={} cancelled={}'.format(
-                 installed, ok, already, failed, cancelled), xbmc.LOGINFO)
+             'already={} failed={} cancelled={} silent={}'.format(
+                 installed, ok, already, failed, cancelled, silent),
+             xbmc.LOGINFO)
     summary = L(30157).format(installed, total) if cancelled \
         else L(30155).format(installed, total)
     xbmcgui.Dialog().notification(
         ADDON_NAME, summary, xbmcgui.NOTIFICATION_INFO)
-    xbmc.executebuiltin('Container.Refresh')
+    if not silent:
+        xbmc.executebuiltin('Container.Refresh')
 
 
 def catalogs_menu():
@@ -1933,7 +1945,7 @@ def _dispatch(action, params):
     elif action == 'account_info':
         account_info()
     elif action == 'addons_sync':
-        addons_sync()
+        addons_sync(params.get('silent') == '1')
     elif action == 'addon_catalogs':
         addon_catalogs(int(params['idx']))
     elif action == 'catalog_filters':
