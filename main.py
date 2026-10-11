@@ -21,7 +21,8 @@ _FALLBACK_ICON = os.path.join(
     xbmcvfs.translatePath(ADDON.getAddonInfo('path')), 'icon.png')
 sys.path.insert(0, os.path.join(ADDON_PATH, 'resources', 'lib'))
 
-from stremio import StremioClient, open_json, head_content_type  # noqa: E402
+from stremio import (StremioClient, open_json, head_content_type,
+                     download_bytes)  # noqa: E402
 from addon_manager import AddonManager      # noqa: E402
 from player_setup import install_player_file  # noqa: E402
 from account_store import (get_account, save_account, clear_account,
@@ -138,6 +139,12 @@ _PREF_LANG = (_PREF_LANG_MAP[_PREF_LANG_IDX]
 _PREF_QUALITY = (_PREF_QUALITY_MAP[_PREF_QUALITY_IDX]
                  if _PREF_QUALITY_IDX < len(_PREF_QUALITY_MAP) else None)
 _HDR_RANK = {'DV': 0, 'IMAX': 1, 'HDR10+': 2, 'HDR10': 3, 'HDR': 4, 'SDR': 5}
+_FETCH_SUBTITLES = ADDON.getSettingBool('fetch_subtitles')
+# Comma-separated language codes (e.g. 'eng, tur'); empty = all languages.
+_SUBTITLE_LANG_FILTER = [
+    c.strip().lower() for c in ADDON.getSetting('subtitle_langs').split(',')
+    if c.strip()
+]
 
 _TMDB_GENRES = {
     28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy',
@@ -1341,10 +1348,11 @@ def _play_streams(stream_type, stream_id, addon_idx=None, meta_info=None):
     if selected < 0:
         return
 
-    _resolve_and_play(all_streams[selected], meta_info=meta_info)
+    _resolve_and_play(all_streams[selected], meta_info=meta_info,
+                      stream_type=stream_type, stream_id=stream_id)
 
 
-def _resolve_and_play(stream, meta_info=None):
+def _resolve_and_play(stream, meta_info=None, stream_type=None, stream_id=None):
     """Standalone play path: resolve stream URL and play via xbmc.Player()."""
     if stream.get('externalUrl'):
         xbmc.executebuiltin(
@@ -1360,6 +1368,10 @@ def _resolve_and_play(stream, meta_info=None):
 
     li = xbmcgui.ListItem(path=url)
     _set_li_metadata(li, meta_info)
+    # Attach subtitle tracks from add-ons declaring a 'subtitles' resource so
+    # the user can switch them in the OSD (unless playback is external).
+    if stream_type and stream_id and _FETCH_SUBTITLES:
+        _attach_subtitles(li, _search_subtitles(stream_type, stream_id))
     play_url = _apply_stream_hints(li, url, stream) or url
     xbmc.Player().play(play_url, li)
 
@@ -1839,6 +1851,27 @@ def _get_cached_streams():
     return []
 
 
+# Window property key for sharing subtitles between list_streams → resolve
+_SUBTITLES_CACHE_KEY = 'stremio2kodi_subtitles_cache'
+
+
+def _cache_subtitles(subs):
+    """Store subtitle dicts in a window property for resolve to pick up."""
+    _win_home.setProperty(
+        _SUBTITLES_CACHE_KEY, json.dumps(subs, ensure_ascii=False))
+
+
+def _get_cached_subtitles():
+    """Retrieve cached subtitle dicts from window property."""
+    raw = _win_home.getProperty(_SUBTITLES_CACHE_KEY)
+    if raw:
+        try:
+            return json.loads(raw)
+        except ValueError:
+            return []
+    return []
+
+
 def list_streams(stream_type, stream_id, base_id=None, season=None,
                  episode=None):
     """Search addons for streams and return them as a Kodi directory listing.
@@ -1862,6 +1895,10 @@ def list_streams(stream_type, stream_id, base_id=None, season=None,
 
     all_streams.sort(key=_stream_sort_key)
     _cache_streams(all_streams)
+
+    # Fetch subtitles in the same pass so resolve can attach them as tracks.
+    _cache_subtitles(_search_subtitles(stream_type, stream_id)
+                     if _FETCH_SUBTITLES else [])
 
     for idx, stream in enumerate(all_streams):
         url = build_url('resolve', idx=str(idx))
@@ -1898,6 +1935,7 @@ def resolve_stream(idx):
         return
 
     li = xbmcgui.ListItem(path=url)
+    _attach_subtitles(li, _get_cached_subtitles())
     _apply_stream_hints(li, url, stream)
     xbmcplugin.setResolvedUrl(HANDLE, True, li)
 
@@ -2046,6 +2084,306 @@ def _search_streams(stream_type, stream_id, addon_idx=None):
             xbmcgui.NOTIFICATION_WARNING)
 
     return all_streams
+
+
+# Subtitle language display names (ISO 639-2/639-1 code → readable name).
+_SUBTITLE_LANG_NAMES = {
+    'en': 'English', 'eng': 'English',
+    'es': 'Spanish', 'spa': 'Spanish', 'pob': 'Portuguese (BR)',
+    'pt': 'Portuguese', 'por': 'Portuguese',
+    'fr': 'French', 'fra': 'French', 'fre': 'French',
+    'de': 'German', 'deu': 'German', 'ger': 'German',
+    'it': 'Italian', 'ita': 'Italian',
+    'ru': 'Russian', 'rus': 'Russian',
+    'ja': 'Japanese', 'jpn': 'Japanese',
+    'ko': 'Korean', 'kor': 'Korean',
+    'zh': 'Chinese', 'zho': 'Chinese', 'chi': 'Chinese',
+    'tr': 'Turkish', 'tur': 'Turkish',
+    'ar': 'Arabic', 'ara': 'Arabic',
+    'hi': 'Hindi', 'hin': 'Hindi',
+    'nl': 'Dutch', 'nld': 'Dutch', 'dut': 'Dutch',
+    'pl': 'Polish', 'pol': 'Polish',
+    'sv': 'Swedish', 'swe': 'Swedish',
+    'no': 'Norwegian', 'nor': 'Norwegian',
+    'da': 'Danish', 'dan': 'Danish',
+    'fi': 'Finnish', 'fin': 'Finnish',
+    'cs': 'Czech', 'ces': 'Czech', 'cze': 'Czech',
+    'sk': 'Slovak', 'slk': 'Slovak', 'slo': 'Slovak',
+    'hu': 'Hungarian', 'hun': 'Hungarian',
+    'ro': 'Romanian', 'ron': 'Romanian', 'rum': 'Romanian',
+    'el': 'Greek', 'ell': 'Greek',
+    'he': 'Hebrew', 'heb': 'Hebrew',
+    'hr': 'Croatian', 'hrv': 'Croatian',
+    'sr': 'Serbian', 'srp': 'Serbian',
+    'sl': 'Slovenian', 'slv': 'Slovenian',
+    'uk': 'Ukrainian', 'ukr': 'Ukrainian',
+    'bg': 'Bulgarian', 'bul': 'Bulgarian',
+    'ca': 'Catalan', 'cat': 'Catalan',
+    'eu': 'Basque', 'eus': 'Basque',
+    'gl': 'Galician', 'glg': 'Galician',
+    'id': 'Indonesian', 'ind': 'Indonesian',
+    'ms': 'Malay', 'msa': 'Malay',
+    'th': 'Thai', 'tha': 'Thai',
+    'vi': 'Vietnamese', 'vie': 'Vietnamese',
+    'fa': 'Persian', 'fas': 'Persian', 'per': 'Persian',
+    'ur': 'Urdu', 'urd': 'Urdu',
+    'bn': 'Bengali', 'ben': 'Bengali',
+    'ta': 'Tamil', 'tam': 'Tamil',
+    'is': 'Icelandic', 'isl': 'Icelandic',
+    'et': 'Estonian', 'est': 'Estonian',
+    'lv': 'Latvian', 'lav': 'Latvian',
+    'lt': 'Lithuanian', 'lit': 'Lithuanian',
+    'sq': 'Albanian', 'sqi': 'Albanian', 'alb': 'Albanian',
+    'mk': 'Macedonian', 'mkd': 'Macedonian', 'mac': 'Macedonian',
+    'az': 'Azerbaijani', 'aze': 'Azerbaijani',
+    'ka': 'Georgian', 'kat': 'Georgian',
+    'hy': 'Armenian', 'hye': 'Armenian',
+    'af': 'Afrikaans', 'afr': 'Afrikaans',
+}
+
+# ISO 639-1 → ISO 639-2/3 canonical code used for matching the lang filter.
+_SUBTITLE_LANG_ALIAS = {
+    'en': 'eng', 'es': 'spa', 'fr': 'fra', 'de': 'deu', 'it': 'ita',
+    'pt': 'por', 'pob': 'por', 'ru': 'rus', 'ja': 'jpn', 'ko': 'kor',
+    'zh': 'zho', 'tr': 'tur', 'ar': 'ara', 'hi': 'hin', 'nl': 'nld',
+    'pl': 'pol', 'sv': 'swe', 'no': 'nor', 'da': 'dan', 'fi': 'fin',
+    'cs': 'ces', 'sk': 'slk', 'hu': 'hun', 'ro': 'ron', 'el': 'ell',
+    'he': 'heb', 'hr': 'hrv', 'sr': 'srp', 'sl': 'slv', 'uk': 'ukr',
+    'bg': 'bul', 'ca': 'cat', 'eu': 'eus', 'gl': 'glg', 'id': 'ind',
+    'ms': 'msa', 'th': 'tha', 'vi': 'vie', 'fa': 'fas', 'ur': 'urd',
+    'bn': 'ben', 'ta': 'tam', 'is': 'isl', 'et': 'est', 'lv': 'lav',
+    'lt': 'lit', 'sq': 'sqi', 'mk': 'mkd', 'az': 'aze', 'ka': 'kat',
+    'hy': 'hye', 'af': 'afr',
+}
+
+
+def _norm_lang(lang):
+    """Canonical language code (ISO 639-2/3) for matching the lang filter."""
+    code = (lang or '').strip().lower()
+    code = code.split('-')[0].split('_')[0]
+    return _SUBTITLE_LANG_ALIAS.get(code, code)
+
+
+def _subtitle_allowed(lang):
+    """Whether a subtitle's lang passes the user's language filter."""
+    if not _SUBTITLE_LANG_FILTER:
+        return True
+    return _norm_lang(lang) in _SUBTITLE_LANG_FILTER
+
+
+def _display_lang(lang):
+    """Readable language name for a subtitle (falls back to its raw code)."""
+    if not lang:
+        return 'Subtitle'
+    return _SUBTITLE_LANG_NAMES.get(_norm_lang(lang)) or lang
+
+
+def _sanitize_filename(name):
+    """Make a string safe to use as a file name (cross-platform, ≤ 80 chars)."""
+    name = re.sub(r'[\\/:*?"<>|]+', '_', name)
+    name = re.sub(r'\s+', ' ', name).strip()
+    return name[:80] or 'subtitle'
+
+
+def _subtitle_dir():
+    """Local temp dir for downloaded subtitle files (created on demand)."""
+    d = os.path.join(xbmcvfs.translatePath('special://temp'),
+                     'stremio2kodi', 'subtitles')
+    try:
+        if not os.path.isdir(d):
+            os.makedirs(d)
+    except OSError as e:
+        xbmc.log('Stremio2Kodi: cannot create subtitle dir {}: {}'.format(d, e),
+                 xbmc.LOGERROR)
+    return d
+
+
+def _search_subtitles(stream_type, stream_id):
+    """Search add-ons for subtitles and return a filtered, de-duplicated list.
+
+    Mirrors the stream search flow: parallel manifest check using the
+    'subtitles' resource (type + idPrefix match via serves_resource), then a
+    parallel fetch from the matching add-ons. Subtitles whose ``lang`` does
+    not pass the user's language filter (``subtitle_langs`` setting) are
+    dropped. Each result is a dict with url/lang/subtitleFileName/_addon.
+    Returns [] on cancel or when no add-on serves subtitles for this item.
+    """
+    addons = addon_mgr.get_addons()
+    if not addons:
+        return []
+
+    xbmc.log('Stremio2Kodi: _search_subtitles: type={} id={} filter={}'.format(
+        stream_type, stream_id, ','.join(_SUBTITLE_LANG_FILTER) or '-'),
+        xbmc.LOGDEBUG)
+
+    timeout = stremio.timeout
+    workers = min(_MAX_WORKERS, len(addons))
+
+    progress = xbmcgui.DialogProgress()
+    progress.create(ADDON_NAME, L(30035))
+
+    # --- Phase 1: parallel manifest check (cached = instant) ---------------
+    def _check_manifest(i):
+        """Keep add-ons whose subtitles resource serves this type/id prefix."""
+        manifest = _get_manifest(addons[i]['url'])
+        if manifest and stremio.serves_resource(manifest, 'subtitles',
+                                                stream_type, stream_id):
+            return i, manifest
+        return i, None
+
+    filtered = []
+    cancelled = False
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(_check_manifest, i): i
+                   for i in range(len(addons))}
+        try:
+            for future in as_completed(futures,
+                                       timeout=stremio._MANIFEST_TIMEOUT + 3):
+                if progress.iscanceled():
+                    cancelled = True
+                    break
+                try:
+                    i, manifest = future.result(timeout=0)
+                    if manifest:
+                        filtered.append((i, manifest))
+                except Exception:
+                    pass
+        except (FuturesTimeoutError, TimeoutError):
+            xbmc.log('Stremio2Kodi: subtitle manifest check timed out',
+                     xbmc.LOGWARNING)
+
+    xbmc.log('Stremio2Kodi: _search_subtitles: {} of {} addons support '
+             'subtitles'.format(len(filtered), len(addons)), xbmc.LOGDEBUG)
+
+    if cancelled or not filtered:
+        progress.close()
+        return []
+
+    # --- Phase 2: parallel subtitle fetch ---------------------------------
+    progress.update(0, L(30045))
+
+    def _fetch_subtitles(i, manifest):
+        result = stremio.get_subtitles(addons[i]['url'],
+                                       stream_type, stream_id)
+        if not result or not result.get('subtitles'):
+            return []
+        addon_name = manifest.get('name',
+                                  addons[i].get('name', addons[i]['url']))
+        subs = []
+        for s in result['subtitles']:
+            if not s.get('url') or not _subtitle_allowed(s.get('lang')):
+                continue
+            subs.append({
+                'url': s['url'],
+                'lang': s.get('lang', ''),
+                'subtitleFileName': s.get('subtitleFileName', ''),
+                '_addon': addon_name,
+            })
+        return subs
+
+    all_subs = []
+    done = set()
+    with ThreadPoolExecutor(max_workers=min(_MAX_WORKERS, len(filtered))) as pool:
+        fmap = {pool.submit(_fetch_subtitles, i, m): i for i, m in filtered}
+        try:
+            for future in as_completed(fmap, timeout=timeout + 5):
+                if progress.iscanceled():
+                    cancelled = True
+                    break
+                done.add(future)
+                try:
+                    all_subs.extend(future.result(timeout=0))
+                except Exception as e:
+                    xbmc.log('Stremio2Kodi: subtitle fetch error: {}'.format(e),
+                             xbmc.LOGWARNING)
+                progress.update(int(len(done) / len(filtered) * 100),
+                                L(30045))
+        except (FuturesTimeoutError, TimeoutError):
+            xbmc.log('Stremio2Kodi: subtitle search timed out, '
+                     '{} subtitles found'.format(len(all_subs)),
+                     xbmc.LOGWARNING)
+
+    progress.close()
+
+    # De-duplicate by URL while preserving order (same file from add-ons)
+    seen = set()
+    unique = []
+    for s in all_subs:
+        if s['url'] not in seen:
+            seen.add(s['url'])
+            unique.append(s)
+
+    xbmc.log('Stremio2Kodi: _search_subtitles: {} subtitles for type={} '
+             'id={}'.format(len(unique), stream_type, stream_id), xbmc.LOGDEBUG)
+    return unique
+
+
+def _download_subtitle(sub, dest, idx):
+    """Fetch one subtitle file and write it to dest. Returns local path or None."""
+    url = sub.get('url', '')
+    if not url:
+        return None
+    data = download_bytes(url)
+    if not data:
+        xbmc.log('Stremio2Kodi: subtitle download failed: {}'.format(url),
+                 xbmc.LOGWARNING)
+        return None
+
+    code = sub.get('lang', '')
+    display = _display_lang(code)
+    raw_name = sub.get('subtitleFileName', '')
+    base = os.path.splitext(os.path.basename(raw_name))[0]
+    if not base:
+        addon = sub.get('_addon', '') or 'Subtitle'
+        base = '{} #{}'.format(_sanitize_filename(addon), idx + 1)
+    ext = os.path.splitext(raw_name)[1].lower()
+    if not ext:
+        ext = os.path.splitext(urllib.parse.urlsplit(url).path)[1].lower()
+    if not ext:
+        ext = '.srt'
+    label = '{} ({}) - {}'.format(display, code, base) if code \
+        else '{} - {}'.format(display, base)
+    path = os.path.join(dest, '{}{}'.format(_sanitize_filename(label), ext))
+    if os.path.exists(path):
+        # Avoid collisions between same-named files from one add-on
+        path = os.path.join(dest, '{}_{}{}'.format(
+            _sanitize_filename(label), idx, ext))
+    try:
+        with open(path, 'wb') as f:
+            f.write(data)
+    except OSError as e:
+        xbmc.log('Stremio2Kodi: cannot write subtitle {}: {}'.format(path, e),
+                 xbmc.LOGERROR)
+        return None
+    return path
+
+
+def _attach_subtitles(li, subs):
+    """Download subtitles with descriptive names and attach them as tracks.
+
+    Downloads each subtitle to a local temp dir (named after its language and
+    source) so Kodi's OSD shows readable track names instead of 'Unknown N'.
+    """
+    if not subs:
+        return
+    dest = _subtitle_dir()
+    workers = min(_MAX_WORKERS, len(subs))
+    paths = [None] * len(subs)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        fmap = {pool.submit(_download_subtitle, s, dest, i): i
+                for i, s in enumerate(subs)}
+        for future in as_completed(fmap):
+            if _monitor.abortRequested():
+                break
+            try:
+                paths[fmap[future]] = future.result(timeout=0)
+            except Exception:
+                pass
+    local = [p for p in paths if p]
+    xbmc.log('Stremio2Kodi: attached {} of {} subtitle tracks'.format(
+        len(local), len(subs)), xbmc.LOGDEBUG)
+    if local:
+        li.setSubtitles(local)
 
 
 def manage_menu():

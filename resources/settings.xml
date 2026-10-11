@@ -60,6 +60,22 @@
                     </constraints>
                     <control type="spinner" format="string"/>
                 </setting>
+                <setting id="fetch_subtitles" type="boolean" label="30046" help="">
+                    <level>0</level>
+                    <default>true</default>
+                    <control type="toggle"/>
+                </setting>
+                <setting id="subtitle_langs" type="string" label="30047" help="30048">
+                    <level>0</level>
+                    <default></default>
+                    <constraints>
+                        <allowempty>true</allowempty>
+                    </constraints>
+                    <dependencies>
+                        <dependency type="visible" setting="fetch_subtitles" operator="is">true</dependency>
+                    </dependencies>
+                    <control type="edit" format="string"/>
+                </setting>
                 <setting id="auth_key" type="string" label="30130" help="">
                     <level>4</level>
                     <visible>false</visible>

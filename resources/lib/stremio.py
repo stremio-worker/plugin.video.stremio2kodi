@@ -52,6 +52,20 @@ def open_json(url, timeout=15):
         return json.loads(decode_body(response).decode('utf-8'))
 
 
+def download_bytes(url, timeout=15):
+    """GET a URL with browser-like headers and return the raw response bytes.
+
+    Returns None on HTTP/network errors, keeping callers on the retry/fallback
+    path. Used for subtitle files, which are not JSON.
+    """
+    req = urllib.request.Request(url, headers=BROWSER_HEADERS)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            return decode_body(response)
+    except Exception:
+        return None
+
+
 def head_content_type(url, extra_headers=None, timeout=8):
     """HEAD a URL with browser-like headers and return lowercased Content-Type.
 
@@ -156,6 +170,22 @@ class StremioClient:
         """
         base_url = self.normalize_url(base_url)
         return self._request('{}/stream/{}/{}.json'.format(
+            base_url,
+            urllib.parse.quote(type_, safe=''),
+            urllib.parse.quote(id_, safe=':'),
+        ))
+
+    def get_subtitles(self, base_url, type_, id_):
+        """Fetch available subtitles for an item.
+
+        Args:
+            base_url: The add-on base URL.
+            type_: Content type ('movie' or 'series').
+            id_: The content ID. For movies: IMDB ID (e.g. 'tt1234567').
+                 For episodes: 'imdb_id:season:episode' (e.g. 'tt1234567:1:1').
+        """
+        base_url = self.normalize_url(base_url)
+        return self._request('{}/subtitles/{}/{}.json'.format(
             base_url,
             urllib.parse.quote(type_, safe=''),
             urllib.parse.quote(id_, safe=':'),

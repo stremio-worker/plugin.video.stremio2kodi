@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Subtitle support: subtitle tracks are fetched from add-ons declaring a
+  `subtitles` resource (same manifest type/idPrefix filtering as streams) and
+  attached to playback as selectable OSD tracks — standalone and TMDbHelper
+  paths, toggleable via the new `fetch_subtitles` setting.
+- Subtitle language filter: the `subtitle_langs` setting (e.g. `eng, tur`)
+  keeps only subtitles whose `lang` matches; empty means all languages.
+- Subtitles are downloaded to a local temp dir with descriptive names
+  (`English (eng) - <file>.srt`) so the OSD shows readable track names
+  instead of "Unknown N".
 - `scripts/package.py` to build the installable add-on zip into `dist/`, plus
   `scripts/build.sh` and `scripts/clean.sh` wrappers.
 - `AGENTS.md` with repository guidance for AI agents.

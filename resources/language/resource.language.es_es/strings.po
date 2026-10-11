@@ -112,6 +112,23 @@ msgctxt "#30041"
 msgid "Found {} stream{}"
 msgstr "{} stream{} encontrados"
 
+# -- Subtítulos --
+msgctxt "#30045"
+msgid "Searching subtitles..."
+msgstr "Buscando subtítulos..."
+
+msgctxt "#30046"
+msgid "Fetch subtitles from addons"
+msgstr "Obtener subtítulos de add-ons"
+
+msgctxt "#30047"
+msgid "Subtitle languages (comma separated)"
+msgstr "Idiomas de subtítulos (separados por comas)"
+
+msgctxt "#30048"
+msgid "e.g. eng, tur — leave empty for all languages"
+msgstr "p. ej. eng, tur — dejar vacío para todos los idiomas"
+
 # -- Gestión de add-ons --
 msgctxt "#30050"
 msgid "[B]+ Add Stremio Add-on[/B]"
