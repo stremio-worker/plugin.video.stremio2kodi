@@ -25,7 +25,7 @@ from stremio import StremioClient, open_json  # noqa: E402
 from addon_manager import AddonManager      # noqa: E402
 from player_setup import install_player_file  # noqa: E402
 from account_store import (get_account, save_account, clear_account,
-                           save_sync_record)  # noqa: E402
+                           save_sync_record, get_sync_record)  # noqa: E402
 
 HANDLE = int(sys.argv[1])
 BASE_URL = sys.argv[0]
@@ -424,15 +424,35 @@ def account_logout():
     xbmc.executebuiltin('Container.Refresh')
 
 
-def _account_stub():
-    """Temporary placeholder for account features (see later plans)."""
-    xbmcgui.Dialog().notification(
-        ADDON_NAME, L(30133), xbmcgui.NOTIFICATION_INFO)
+def _format_ts(ts):
+    """Format a Unix timestamp with Kodi's regional date/time formats."""
+    if not ts:
+        return L(30164)
+    fmt = '{} {}'.format(xbmc.getRegion('datelong'), xbmc.getRegion('time'))
+    return time.strftime(fmt, time.localtime(ts))
 
 
 def account_info():
-    """Placeholder: show account info (implemented in a later plan)."""
-    _account_stub()
+    """Show the Stremio account info stored in settings."""
+    acc = get_account()
+    rec = get_sync_record()
+
+    lines = []
+    if acc.get('auth_key'):
+        lines.append(L(30158).format(acc.get('email') or u'\u2014'))
+        lines.append(L(30159).format(acc['auth_key']))
+        lines.append(L(30160).format(_format_ts(acc.get('login_time'))))
+    else:
+        lines.append(L(30163))
+
+    lines.append('')
+    if rec.get('sync_time'):
+        lines.append(L(30161).format(rec.get('ok', 0), rec.get('total', 0)))
+        lines.append(L(30162).format(_format_ts(rec.get('sync_time'))))
+    else:
+        lines.append(L(30165))
+
+    xbmcgui.Dialog().textviewer(L(30131), '\n'.join(lines))
 
 
 def addons_sync():

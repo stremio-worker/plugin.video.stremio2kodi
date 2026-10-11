@@ -346,10 +346,6 @@ msgctxt "#30132"
 msgid "Addons Sync"
 msgstr "Sincronizar addons"
 
-msgctxt "#30133"
-msgid "Not implemented yet"
-msgstr "Aún no implementado"
-
 msgctxt "#30134"
 msgid "Logout"
 msgstr "Cerrar sesión"
@@ -425,3 +421,36 @@ msgstr "No hay addons en tu colección de Stremio"
 msgctxt "#30157"
 msgid "Sync canceled: {} of {} addons installed"
 msgstr "Sincronización cancelada: {} de {} addons instalados"
+
+# -- Account Info --
+msgctxt "#30158"
+msgid "Email: {}"
+msgstr "Correo electrónico: {}"
+
+msgctxt "#30159"
+msgid "AuthKey: {}"
+msgstr "AuthKey: {}"
+
+msgctxt "#30160"
+msgid "Logged in: {}"
+msgstr "Sesión iniciada: {}"
+
+msgctxt "#30161"
+msgid "Synced addons: {} of {}"
+msgstr "Addons sincronizados: {} de {}"
+
+msgctxt "#30162"
+msgid "Last sync: {}"
+msgstr "Última sincronización: {}"
+
+msgctxt "#30163"
+msgid "Not logged in"
+msgstr "No has iniciado sesión"
+
+msgctxt "#30164"
+msgid "Never"
+msgstr "Nunca"
+
+msgctxt "#30165"
+msgid "Not synced yet"
+msgstr "Aún no sincronizado"

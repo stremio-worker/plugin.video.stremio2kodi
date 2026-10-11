@@ -346,10 +346,6 @@ msgctxt "#30132"
 msgid "Addons Sync"
 msgstr ""
 
-msgctxt "#30133"
-msgid "Not implemented yet"
-msgstr ""
-
 msgctxt "#30134"
 msgid "Logout"
 msgstr ""
@@ -424,4 +420,37 @@ msgstr ""
 
 msgctxt "#30157"
 msgid "Sync canceled: {} of {} addons installed"
+msgstr ""
+
+# -- Account Info --
+msgctxt "#30158"
+msgid "Email: {}"
+msgstr ""
+
+msgctxt "#30159"
+msgid "AuthKey: {}"
+msgstr ""
+
+msgctxt "#30160"
+msgid "Logged in: {}"
+msgstr ""
+
+msgctxt "#30161"
+msgid "Synced addons: {} of {}"
+msgstr ""
+
+msgctxt "#30162"
+msgid "Last sync: {}"
+msgstr ""
+
+msgctxt "#30163"
+msgid "Not logged in"
+msgstr ""
+
+msgctxt "#30164"
+msgid "Never"
+msgstr ""
+
+msgctxt "#30165"
+msgid "Not synced yet"
 msgstr ""
