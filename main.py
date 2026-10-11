@@ -501,10 +501,12 @@ def addons_sync():
                 name, e), xbmc.LOGERROR)
             failed += 1
 
-    # Hold the finished dialog briefly so even instant runs are visible.
+    # Show the summary on the dialog briefly, then close it cleanly.
     progress.update(100, L(30155).format(ok, total))
-    _monitor.waitForAbort(1000)
+    time.sleep(0.8)
     progress.close()
+    # Give the GUI a beat to remove the modal before the notification.
+    time.sleep(0.2)
 
     save_sync_record(total=total, ok=ok)
     xbmc.log('Stremio2Kodi: addons_sync: finished ok={} failed={}'.format(
