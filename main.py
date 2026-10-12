@@ -25,6 +25,7 @@ from stremio import (StremioClient, open_json, head_content_type,
                      download_bytes)  # noqa: E402
 from addon_manager import AddonManager      # noqa: E402
 from player_setup import install_player_file  # noqa: E402
+from stream_dialog import show_stream_dialog  # noqa: E402
 from account_store import (get_account, save_account, clear_account,
                            save_sync_record, get_sync_record)  # noqa: E402
 
@@ -1002,11 +1003,11 @@ def _play_from_meta(meta_type, meta_id, addon_idx, meta_info=None, meta=None):
              'type={} id={}'.format(len(all_streams), meta_type, meta_id),
              xbmc.LOGDEBUG)
 
-    selected = _pick_stream(all_streams)
-    if selected < 0:
+    selected = _choose_stream(streams=all_streams)
+    if selected is None:
         return True  # User cancelled, but we handled it
 
-    _resolve_and_play(all_streams[selected], meta_info=meta_info)
+    _resolve_and_play(selected, meta_info=meta_info)
     return True
 
 
@@ -1039,11 +1040,20 @@ def _build_stream_listitem(stream):
     return li
 
 
-def _pick_stream(streams):
-    """Show the stream selection dialog. Returns index or -1."""
-    streams.sort(key=_stream_sort_key)
-    items = [_build_stream_listitem(s) for s in streams]
-    return xbmcgui.Dialog().select(L(30030), items, useDetails=True)
+def _choose_stream(streams=None, producer=None):
+    """Open the lazy-loading stream picker and return the chosen stream.
+
+    ``streams`` shows a ready-made list immediately; ``producer`` fetches
+    streams in the background and fills the list as each add-on answers, so the
+    user can pick a source without waiting for the slowest add-on. Returns the
+    selected stream dict, or None when the user cancels / no stream was found.
+    """
+    return show_stream_dialog(
+        item_factory=_build_stream_listitem,
+        sort_key=_stream_sort_key,
+        streams=streams,
+        producer=producer,
+        title_id=30030)
 
 
 def _items_needing_enrichment(metas):
@@ -1322,10 +1332,12 @@ def _episode_stream_id(meta, season, episode):
 
 
 def _play_streams(stream_type, stream_id, addon_idx=None, meta_info=None):
-    """Search add-ons for streams, let the user pick one, and play it.
+    """Search add-ons for streams and play the user's choice.
 
-    This is the standalone path (catalog browsing). The TMDbHelper path
-    uses list_streams + resolve instead.
+    This is the standalone path (catalog browsing). The stream picker opens
+    immediately and fills in as each add-on answers, so the user can pick a
+    source without waiting for the slowest one. The TMDbHelper path uses
+    list_streams + resolve instead.
     """
     if meta_info is None:
         meta_info = {}
@@ -1333,22 +1345,18 @@ def _play_streams(stream_type, stream_id, addon_idx=None, meta_info=None):
     xbmc.log('Stremio2Kodi: _play_streams: type={} id={} addon_idx={}'.format(
         stream_type, stream_id, addon_idx), xbmc.LOGDEBUG)
 
-    all_streams = _search_streams(stream_type, stream_id, addon_idx=addon_idx)
-    count = len(all_streams) if all_streams else 0
-    xbmc.log('Stremio2Kodi: _play_streams: got {} streams for type={} '
-             'id={}'.format(count, stream_type, stream_id), xbmc.LOGDEBUG)
-    if not all_streams:
-        xbmc.log('Stremio2Kodi: _play_streams: no streams for type={} '
-                 'id={}'.format(stream_type, stream_id), xbmc.LOGWARNING)
+    def producer(on_batch, is_cancelled):
+        return _search_streams(stream_type, stream_id, addon_idx=addon_idx,
+                               on_batch=on_batch, is_cancelled=is_cancelled)
+
+    selected = _choose_stream(producer=producer)
+    if selected is None:
+        xbmc.log('Stremio2Kodi: _play_streams: no stream selected for '
+                 'type={} id={}'.format(stream_type, stream_id),
+                 xbmc.LOGDEBUG)
         return
 
-    selected = _pick_stream(all_streams)
-    xbmc.log('Stremio2Kodi: _play_streams: selected={} of {}'.format(
-        selected, count), xbmc.LOGDEBUG)
-    if selected < 0:
-        return
-
-    _resolve_and_play(all_streams[selected], meta_info=meta_info,
+    _resolve_and_play(selected, meta_info=meta_info,
                       stream_type=stream_type, stream_id=stream_id)
 
 
@@ -1889,10 +1897,13 @@ def _get_cached_subtitles():
 
 def list_streams(stream_type, stream_id, base_id=None, season=None,
                  episode=None):
-    """Search addons for streams and return them as a Kodi directory listing.
+    """Search addons for streams and return the choice as a Kodi directory.
 
-    Used by TMDbHelper's dialog step — returns items for TMDbHelper to
-    present in its own selection dialog.
+    Used by TMDbHelper. The lazy-loading stream picker opens immediately and
+    fills in as each add-on answers (instead of blocking the whole search);
+    the chosen stream is then emitted as a single directory item, which the
+    shipped player definition auto-selects (position 1) so TMDbHelper shows no
+    second dialog. Cancelling emits an empty listing.
     """
     # Stream id always comes from the meta (Stremio default behaviour).
     meta_info = {}
@@ -1903,24 +1914,25 @@ def list_streams(stream_type, stream_id, base_id=None, season=None,
         else:
             stream_id = meta.get('id') or stream_id
 
-    all_streams = _search_streams(stream_type, stream_id)
-    if not all_streams:
+    def producer(on_batch, is_cancelled):
+        return _search_streams(stream_type, stream_id,
+                               on_batch=on_batch, is_cancelled=is_cancelled)
+
+    selected = _choose_stream(producer=producer)
+    if selected is None:
         xbmcplugin.endOfDirectory(HANDLE, succeeded=False)
         return
 
-    all_streams.sort(key=_stream_sort_key)
-    _cache_streams(all_streams)
+    _cache_streams([selected])
 
     # Fetch subtitles in the same pass so resolve can attach them as tracks.
     _cache_subtitles(_search_subtitles(stream_type, stream_id)
                      if _FETCH_SUBTITLES else [])
 
-    for idx, stream in enumerate(all_streams):
-        url = build_url('resolve', idx=str(idx))
-        li = _build_stream_listitem(stream)
-        li.setProperty('IsPlayable', 'true')
-        xbmcplugin.addDirectoryItem(HANDLE, url, li, isFolder=False)
-
+    url = build_url('resolve', idx='0')
+    li = _build_stream_listitem(selected)
+    li.setProperty('IsPlayable', 'true')
+    xbmcplugin.addDirectoryItem(HANDLE, url, li, isFolder=False)
     xbmcplugin.endOfDirectory(HANDLE)
 
 
@@ -1955,16 +1967,23 @@ def resolve_stream(idx):
     xbmcplugin.setResolvedUrl(HANDLE, True, li)
 
 
-def _search_streams(stream_type, stream_id, addon_idx=None):
+def _search_streams(stream_type, stream_id, addon_idx=None,
+                    on_batch=None, is_cancelled=None):
     """Run the parallel manifest check + stream search, return stream list.
 
     Shared by both the standalone play path and the TMDbHelper list path.
+    When ``on_batch`` is given the search runs without the blocking progress
+    dialog and calls ``on_batch(streams)`` for every add-on that answers, so a
+    caller (the stream picker dialog) can display results incrementally.
+    ``is_cancelled()`` is polled to stop early.
     """
+    use_progress = on_batch is None
     addons = addon_mgr.get_addons()
     if not addons:
-        xbmcgui.Dialog().notification(
-            ADDON_NAME, L(30010),
-            xbmcgui.NOTIFICATION_ERROR)
+        if use_progress:
+            xbmcgui.Dialog().notification(
+                ADDON_NAME, L(30010),
+                xbmcgui.NOTIFICATION_ERROR)
         return []
 
     if addon_idx is not None and 0 <= addon_idx < len(addons):
@@ -1983,8 +2002,15 @@ def _search_streams(stream_type, stream_id, addon_idx=None):
     for i in indices:
         labels[i] = addons[i].get('name', addons[i]['url'].split('/')[2][:30])
 
-    progress = xbmcgui.DialogProgress()
-    progress.create(ADDON_NAME, L(30035))
+    progress = None
+    if use_progress:
+        progress = xbmcgui.DialogProgress()
+        progress.create(ADDON_NAME, L(30035))
+
+    def _cancelled():
+        if is_cancelled is not None:
+            return is_cancelled()
+        return progress.iscanceled() if progress is not None else False
 
     # --- Phase 1: parallel manifest check (cached = instant) ----------------
     def _check_manifest(i):
@@ -2002,7 +2028,7 @@ def _search_streams(stream_type, stream_id, addon_idx=None):
         try:
             for future in as_completed(futures,
                                        timeout=stremio._MANIFEST_TIMEOUT + 3):
-                if progress.iscanceled():
+                if _cancelled():
                     cancelled = True
                     break
                 try:
@@ -2023,8 +2049,9 @@ def _search_streams(stream_type, stream_id, addon_idx=None):
             ', '.join(labels[i] for i, _ in filtered)), xbmc.LOGDEBUG)
 
     if cancelled or not filtered:
-        progress.close()
-        if not cancelled:
+        if progress is not None:
+            progress.close()
+        if not cancelled and use_progress:
             xbmcgui.Dialog().notification(
                 ADDON_NAME, L(30032),
                 xbmcgui.NOTIFICATION_WARNING)
@@ -2032,7 +2059,8 @@ def _search_streams(stream_type, stream_id, addon_idx=None):
 
     # --- Phase 2: parallel stream fetch -------------------------------------
     searching_line = _names_summary([labels[i] for i, _ in filtered])
-    progress.update(0, '{}\n{}'.format(L(30036), searching_line))
+    if progress is not None:
+        progress.update(0, '{}\n{}'.format(L(30036), searching_line))
 
     def _fetch_streams(i, manifest):
         name = manifest.get('name', labels[i])
@@ -2051,49 +2079,57 @@ def _search_streams(stream_type, stream_id, addon_idx=None):
     done = set()
     name_map = {i: labels[i] for i, _ in filtered}
 
-    with ThreadPoolExecutor(max_workers=min(_MAX_WORKERS, len(filtered))) as pool:
-        fmap = {pool.submit(_fetch_streams, i, m): i for i, m in filtered}
+    pool = ThreadPoolExecutor(max_workers=min(_MAX_WORKERS, len(filtered)))
+    fmap = {pool.submit(_fetch_streams, i, m): i for i, m in filtered}
 
-        try:
-            for future in as_completed(fmap, timeout=timeout + 5):
-                if progress.iscanceled():
-                    cancelled = True
-                    break
-                done.add(future)
-                try:
-                    _, streams = future.result(timeout=0)
-                    all_streams.extend(streams)
-                except Exception as e:
-                    xbmc.log('Stremio2Kodi: stream fetch error: {}'.format(e),
-                             xbmc.LOGWARNING)
-                pending = [name_map[fmap[f]] for f in fmap if f not in done]
-                quality = _quality_summary(all_streams)
-                still_searching = len(done) < len(filtered)
-                line1 = L(30040).format(
-                    len(all_streams),
-                    's' if len(all_streams) != 1 else '') if still_searching else L(30041).format(
-                    len(all_streams),
-                    's' if len(all_streams) != 1 else '')
-                parts = []
-                if quality:
-                    parts.append(quality)
-                if pending:
-                    parts.append(L(30039).format(_names_summary(pending)))
-                line2 = '  |  '.join(parts) if parts else searching_line
-                progress.update(int(len(done) / len(filtered) * 100),
-                                '{}\n{}'.format(line1, line2))
-        except (FuturesTimeoutError, TimeoutError):
-            xbmc.log('Stremio2Kodi: stream search timed out, '
-                     '{} streams found'.format(len(all_streams)),
-                     xbmc.LOGWARNING)
+    try:
+        for future in as_completed(fmap, timeout=timeout + 5):
+            if _cancelled():
+                cancelled = True
+                break
+            done.add(future)
+            streams = []
+            try:
+                _, streams = future.result(timeout=0)
+                all_streams.extend(streams)
+            except Exception as e:
+                xbmc.log('Stremio2Kodi: stream fetch error: {}'.format(e),
+                         xbmc.LOGWARNING)
+            if on_batch is not None and streams:
+                on_batch(streams)
+            if progress is None:
+                continue
+            pending = [name_map[fmap[f]] for f in fmap if f not in done]
+            quality = _quality_summary(all_streams)
+            still_searching = len(done) < len(filtered)
+            line1 = L(30040).format(
+                len(all_streams),
+                's' if len(all_streams) != 1 else '') if still_searching else L(30041).format(
+                len(all_streams),
+                's' if len(all_streams) != 1 else '')
+            parts = []
+            if quality:
+                parts.append(quality)
+            if pending:
+                parts.append(L(30039).format(_names_summary(pending)))
+            line2 = '  |  '.join(parts) if parts else searching_line
+            progress.update(int(len(done) / len(filtered) * 100),
+                            '{}\n{}'.format(line1, line2))
+    except (FuturesTimeoutError, TimeoutError):
+        xbmc.log('Stremio2Kodi: stream search timed out, '
+                 '{} streams found'.format(len(all_streams)),
+                 xbmc.LOGWARNING)
+    finally:
+        pool.shutdown(wait=use_progress, cancel_futures=not use_progress)
 
-    progress.close()
+    if progress is not None:
+        progress.close()
 
     xbmc.log('Stremio2Kodi: _search_streams: returning {} streams for '
              'type={} id={}'.format(len(all_streams), stream_type, stream_id),
              xbmc.LOGDEBUG)
 
-    if not all_streams and not cancelled:
+    if not all_streams and not cancelled and use_progress:
         xbmcgui.Dialog().notification(
             ADDON_NAME, L(30031),
             xbmcgui.NOTIFICATION_WARNING)

@@ -11,10 +11,10 @@
     },
     "play_movie": [
         "plugin://plugin.video.stremio2kodi/?action=list_streams&type=movie&imdb_id={imdb}",
-        {"dialog": "True"}
+        {"position": "1"}
     ],
     "play_episode": [
         "plugin://plugin.video.stremio2kodi/?action=list_streams&type=series&imdb_id={imdb}&season={season}&episode={episode}",
-        {"dialog": "True"}
+        {"position": "1"}
     ]
 }

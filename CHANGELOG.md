@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- New custom stream-selection dialog (WindowXMLDialog) with real lazy loading:
+  it opens immediately and fills in as each add-on answers, so the user can
+  pick a stream before the slowest add-on finishes (standalone play path,
+  meta-embedded streams, and the TMDbHelper integration). The list is sorted
+  by the configured quality/language preferences once the search completes,
+  keeping the focused item in place.
+- TMDbHelper integration: `list_streams` now shows the same lazy-loading
+  picker and emits only the chosen stream; the shipped player definition
+  auto-selects that single item (`"position": "1"`), so the search no longer
+  blocks behind a progress bar and the extra TMDbHelper selection dialog is
+  gone. The `resolve` step is unchanged.
+
 ### Fixed
 - Stream list (standalone dialog and TMDbHelper `list_streams`) now shows the
   stream `description` (the field that replaced the deprecated `title`) on the

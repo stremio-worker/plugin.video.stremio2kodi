@@ -30,12 +30,15 @@ to check a change; import errors are expected.
 
 1. **Standalone** (catalog browsing): `_play_streams` finds streams and plays via
    `xbmc.Player().play()`; auto-play iterates the sorted list as fallback.
-2. **TMDbHelper**: `action=list_streams` emits a directory of streams and stashes
-   them in Window(10000) property `stremio2kodi_streams_cache` (JSON, trimmed
-   fields); `action=resolve` reads that index back and calls `setResolvedUrl`.
+2. **TMDbHelper**: `action=list_streams` opens the same lazy-loading stream
+   picker as the standalone path, then emits the single chosen stream and stashes
+   it in Window(10000) property `stremio2kodi_streams_cache` (JSON, trimmed
+   fields); `action=resolve` reads that back and calls `setResolvedUrl`.
    The installed player JSON (`resources/player/stremio2kodi.json`) points
-   TMDbHelper at these actions. Edit the JSON in `resources/player/`, not the copy
-   installed under `addon_data/plugin.video.themoviedb.helper/players/`.
+   TMDbHelper at these actions and auto-selects the single emitted item
+   (`"position": "1"`) so TMDbHelper shows no extra dialog. Edit the JSON in
+   `resources/player/`, not the copy installed under
+   `addon_data/plugin.video.themoviedb.helper/players/`.
 
 ## Caching
 
