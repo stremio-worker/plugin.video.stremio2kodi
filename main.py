@@ -988,8 +988,8 @@ def _play_from_meta(meta_type, meta_id, addon_idx, meta_info=None, meta=None):
         for stream in video.get('streams', []):
             stream['_addon'] = meta.get('name', addons[addon_idx].get('name', ''))
             # Use video title as fallback stream name
-            if not stream.get('name') and not stream.get('title'):
-                stream['title'] = video.get('title') or video.get('id', '')
+            if not stream.get('name') and not _stream_description(stream):
+                stream['description'] = video.get('title') or video.get('id', '')
             all_streams.append(stream)
 
     if not all_streams:
@@ -1012,10 +1012,10 @@ def _play_from_meta(meta_type, meta_id, addon_idx, meta_info=None, meta=None):
 
 def _build_stream_listitem(stream):
     """Build a ListItem for a stream with label, label2, streamdetails and art."""
-    label, name_line = _stream_label(stream)
+    label, description = _stream_label(stream)
     li = xbmcgui.ListItem(label)
     sd = _parse_stream_details(stream)
-    li.setLabel2(_stream_details_label(sd, name_line))
+    li.setLabel2(_stream_details_label(sd, description))
     # Video/audio stream info via InfoTagVideo (Kodi 21+)
     tag = li.getVideoInfoTag()
     if 'width' in sd or 'vcodec' in sd:
@@ -1415,25 +1415,37 @@ def _stream_sort_key(stream):
     return (lang_rank, quality_pref, quality_rank, hdr_rank, remux_rank, size_rank)
 
 
-def _stream_label(stream):
-    """Return (main_label, name_line) from stream name/title.
+def _stream_description(stream):
+    """Full stream description: Stremio 'description' (new) or legacy 'title'.
 
-    main_label  = title first line (shown as line 1 in dialog).
-    name_line   = name first line (prepended to label2 / line 2).
+    The Stremio protocol deprecated 'title' in favour of 'description';
+    add-ons may populate either, so both are read here (new field wins).
+    """
+    return stream.get('description') or stream.get('title') or ''
+
+
+def _stream_label(stream):
+    """Return (main_label, description) for a stream.
+
+    main_label  = stream name first line (shown as line 1 in list/dialog),
+                  falling back to the description, then 'Unknown Source'.
+    description = full stream description flattened to one line (shown as
+                  line 2 / label2); '' when the stream has no description.
     """
     name = stream.get('name', '')
     name_line = name.split('\n')[0].strip() if name else ''
-    title = stream.get('title', '')
-    title_line = title.split('\n')[0].strip() if title else ''
-    main = title_line or name_line or 'Unknown Source'
-    return main, name_line if title_line else ''
+    desc_flat = ' '.join(_stream_description(stream).split())
+    main = name_line or desc_flat or 'Unknown Source'
+    if not name_line and desc_flat == main:
+        desc_flat = ''  # no separate name: don't repeat the label on line 2
+    return main, desc_flat
 
 
-def _stream_details_label(sd, name_line=''):
+def _stream_details_label(sd, description=''):
     """Build a formatted label2 string matching TMDbHelper style (pipe-separated)."""
     parts = []
-    if name_line:
-        parts.append(name_line)
+    if description:
+        parts.append(description)
     if 'width' in sd:
         parts.append('{}x{}'.format(sd['width'], sd['height']))
     if sd.get('hdr'):
@@ -1486,7 +1498,9 @@ def _parse_stream_details(stream):
     if cached is not None:
         return cached
 
-    text = '{}\n{}'.format(stream.get('name', ''), stream.get('title', ''))
+    text = '{}\n{}\n{}'.format(stream.get('name', ''),
+                               stream.get('title', ''),
+                               stream.get('description', ''))
 
     details = {}
 
@@ -1835,6 +1849,7 @@ def _cache_streams(streams):
     for s in streams:
         slim.append({
             k: s[k] for k in ('url', 'infoHash', 'name', 'title',
+                               'description',
                                'sources', 'fileIdx', 'ytId',
                                'externalUrl', 'behaviorHints', '_addon')
             if k in s

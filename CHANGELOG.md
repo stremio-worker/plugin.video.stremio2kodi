@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Stream list (standalone dialog and TMDbHelper `list_streams`) now shows the
+  stream `description` (the field that replaced the deprecated `title`) on the
+  second line, under the `name`; previously only the `name` was visible. The
+  description is also parsed for quality/size/language details and cached for
+  the `resolve` step.
+
 ## [1.6.1] - 2026-10-11
 
 ### Added
