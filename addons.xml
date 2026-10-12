@@ -19,6 +19,9 @@
         <description lang="en_GB">Browse and stream content from Stremio add-ons within Kodi. Supports catalogs, streams, and integrates with TMDbHelper for metadata and search.</description>
         <description lang="es_ES">Explora y reproduce contenido de add-ons de Stremio dentro de Kodi. Soporta catálogos, streams e integración con TMDbHelper para metadatos y búsqueda.</description>
         <license>GPL-3.0-only</license>
+        <assets>
+            <icon>icon.png</icon>
+        </assets>
     </extension>
 </addon>
 <addon id="repository.stremio"
