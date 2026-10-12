@@ -915,26 +915,35 @@ def play_movie(imdb_id, stream_type='movie', addon_idx=None, meta_info=None):
     meta_info = meta_info or {}
     xbmc.log('Stremio2Kodi: play_movie: id={} type={} addon_idx={}'.format(
         imdb_id, stream_type, addon_idx), xbmc.LOGDEBUG)
-    # Per the Stremio protocol the stream id is the canonical meta id.
-    meta = _resolve_meta(stream_type, imdb_id, addon_idx, meta_info)
-    stream_id = (meta or {}).get('id') or imdb_id
-    xbmc.log('Stremio2Kodi: play_movie: resolved stream_id={} (meta={})'.format(
-        stream_id, bool(meta)), xbmc.LOGDEBUG)
-    # For non-IMDB IDs, try meta-embedded streams first (reuse the meta).
-    if not stream_id.startswith('tt') and addon_idx is not None:
-        xbmc.log(
-            'Stremio2Kodi: play_movie: non-tt id, trying embedded meta '
-            'streams', xbmc.LOGDEBUG)
-        if _play_from_meta(stream_type, stream_id, addon_idx,
-                           meta_info=meta_info, meta=meta):
-            xbmc.log('Stremio2Kodi: play_movie: played via embedded meta '
-                     'streams', xbmc.LOGDEBUG)
-            return
-        xbmc.log('Stremio2Kodi: play_movie: no embedded streams, falling '
-                 'back to stream search', xbmc.LOGDEBUG)
+
+    def prepare(on_batch, is_cancelled):
+        """Resolve the meta id and embedded streams in the worker thread.
+
+        Runs inside the stream dialog's worker, so the dialog is already on
+        screen (and swallowing stray clicks) while the meta request is in
+        flight instead of leaving the user staring at a blank, clickable UI.
+        """
+        # Per the Stremio protocol the stream id is the canonical meta id.
+        meta = _resolve_meta(stream_type, imdb_id, addon_idx, meta_info)
+        stream_id = (meta or {}).get('id') or imdb_id
+        xbmc.log('Stremio2Kodi: play_movie: resolved stream_id={} '
+                 '(meta={})'.format(stream_id, bool(meta)), xbmc.LOGDEBUG)
+        # For non-IMDB IDs, prefer streams embedded in the item's meta.
+        if not stream_id.startswith('tt') and addon_idx is not None:
+            meta, embedded = _embedded_streams(stream_type, stream_id,
+                                               addon_idx, meta)
+            if meta is not None:
+                _merge_stremio_meta(meta_info, meta)
+            if embedded:
+                xbmc.log('Stremio2Kodi: play_movie: playing via embedded '
+                         'meta streams', xbmc.LOGDEBUG)
+                on_batch(embedded)
+                return None  # delivered already; nothing left to search
+        return stream_id
+
     # Stream search covers every add-on whose manifest matches type/prefix;
     # the addon_idx restriction belongs to embedded-stream meta lookups only.
-    _play_streams(stream_type, stream_id, meta_info=meta_info)
+    _play_streams(stream_type, imdb_id, meta_info=meta_info, prepare=prepare)
 
 
 def play_episode(imdb_id, season, episode, meta_info=None, addon_idx=None):
@@ -942,73 +951,68 @@ def play_episode(imdb_id, season, episode, meta_info=None, addon_idx=None):
     xbmc.log('Stremio2Kodi: play_episode: id={} season={} episode={} '
              'addon_idx={}'.format(imdb_id, season, episode, addon_idx),
              xbmc.LOGDEBUG)
-    meta = _resolve_meta('series', imdb_id, addon_idx, meta_info)
-    stream_id = _episode_stream_id(meta, season, episode) or \
-        '{}:{}:{}'.format(imdb_id, season, episode)
-    xbmc.log('Stremio2Kodi: play_episode: resolved stream_id={} '
-             '(meta={})'.format(stream_id, bool(meta)), xbmc.LOGDEBUG)
-    _play_streams('series', stream_id, meta_info=meta_info)
+
+    def prepare(on_batch, is_cancelled):
+        """Resolve the episode's stream id inside the dialog's worker thread."""
+        meta = _resolve_meta('series', imdb_id, addon_idx, meta_info)
+        stream_id = _episode_stream_id(meta, season, episode) or \
+            '{}:{}:{}'.format(imdb_id, season, episode)
+        xbmc.log('Stremio2Kodi: play_episode: resolved stream_id={} '
+                 '(meta={})'.format(stream_id, bool(meta)), xbmc.LOGDEBUG)
+        return stream_id
+
+    _play_streams('series', imdb_id, meta_info=meta_info, prepare=prepare)
 
 
-def _play_from_meta(meta_type, meta_id, addon_idx, meta_info=None, meta=None):
-    """Try to play a non-IMDB item using embedded streams from its meta.
+def _embedded_streams(meta_type, meta_id, addon_idx, meta=None):
+    """Return ``(meta, streams)`` embedded in a meta's videos.
 
-    Some Stremio add-ons (e.g. Peerflix/RealDebrid) expose catalog items
-    of type 'other' whose meta contains videos with embedded stream URLs.
-    Returns True if streams were found and handled, False otherwise.
+    Some Stremio add-ons (e.g. Peerflix/RealDebrid) expose catalog items of
+    type 'other' whose meta contains videos with embedded stream URLs. When the
+    item's own meta carries no videos, the owning catalog add-on is queried.
+    Returns ``(None, [])`` when nothing is found.
     """
     addons = addon_mgr.get_addons()
-    if addon_idx >= len(addons):
-        xbmc.log('Stremio2Kodi: _play_from_meta: invalid addon_idx={} '
+    if addon_idx is None or addon_idx >= len(addons):
+        xbmc.log('Stremio2Kodi: _embedded_streams: invalid addon_idx={} '
                  '({} addons)'.format(addon_idx, len(addons)),
                  xbmc.LOGWARNING)
-        return False
+        return None, []
 
     videos = (meta or {}).get('videos', [])
     if not videos:
         # Fall back to the catalog add-on, which owns the embedded streams.
-        xbmc.log('Stremio2Kodi: _play_from_meta: fetching meta from catalog '
+        xbmc.log('Stremio2Kodi: _embedded_streams: fetching meta from catalog '
                  'addon idx={} type={} id={}'.format(
                      addon_idx, meta_type, meta_id), xbmc.LOGDEBUG)
         result = _get_meta_cached(addons[addon_idx]['url'], meta_type, meta_id)
         if not result or not result.get('meta'):
-            xbmc.log('Stremio2Kodi: _play_from_meta: no meta for type={} '
+            xbmc.log('Stremio2Kodi: _embedded_streams: no meta for type={} '
                      'id={}'.format(meta_type, meta_id), xbmc.LOGWARNING)
-            return False
+            return None, []
         meta = result['meta']
         videos = meta.get('videos', [])
 
-    # Enrich meta_info from the fetched meta
-    if meta_info is None:
-        meta_info = {}
-    _merge_stremio_meta(meta_info, meta)
-
-    # Collect all embedded streams from all videos
-    all_streams = []
+    addon_name = meta.get('name', addons[addon_idx].get('name', ''))
+    streams = []
     for video in videos:
         for stream in video.get('streams', []):
-            stream['_addon'] = meta.get('name', addons[addon_idx].get('name', ''))
+            stream['_addon'] = addon_name
             # Use video title as fallback stream name
             if not stream.get('name') and not _stream_description(stream):
                 stream['description'] = video.get('title') or video.get('id', '')
-            all_streams.append(stream)
+            streams.append(stream)
 
-    if not all_streams:
-        xbmc.log('Stremio2Kodi: _play_from_meta: no embedded streams in meta '
-                 'type={} id={} ({} videos)'.format(
+    if not streams:
+        xbmc.log('Stremio2Kodi: _embedded_streams: no embedded streams in '
+                 'meta type={} id={} ({} videos)'.format(
                      meta_type, meta_id, len(videos)), xbmc.LOGWARNING)
-        return False
+        return meta, []
 
-    xbmc.log('Stremio2Kodi: _play_from_meta: collected {} embedded streams '
-             'type={} id={}'.format(len(all_streams), meta_type, meta_id),
+    xbmc.log('Stremio2Kodi: _embedded_streams: collected {} embedded streams '
+             'type={} id={}'.format(len(streams), meta_type, meta_id),
              xbmc.LOGDEBUG)
-
-    selected = _choose_stream(streams=all_streams)
-    if selected is None:
-        return True  # User cancelled, but we handled it
-
-    _resolve_and_play(selected, meta_info=meta_info)
-    return True
+    return meta, streams
 
 
 def _build_stream_listitem(stream):
@@ -1331,33 +1335,59 @@ def _episode_stream_id(meta, season, episode):
     return None
 
 
-def _play_streams(stream_type, stream_id, addon_idx=None, meta_info=None):
+def _stream_producer(stream_type, stream_id, prepare=None):
+    """Build a ``producer`` that optionally resolves the id, then searches.
+
+    ``prepare(on_batch, is_cancelled)`` runs first in the same worker thread,
+    so slow work (meta lookups, embedded-stream fetches) happens *after* the
+    stream dialog is already on screen and blocking stray clicks. It returns
+    the final stream id to search with, or ``None`` when it delivered the
+    streams itself via ``on_batch`` (nothing left to search). Returns
+    ``(producer, state)`` where ``state['stream_id']`` holds the resolved id.
+    """
+    state = {'stream_id': stream_id}
+
+    def producer(on_batch, is_cancelled):
+        if is_cancelled():
+            return []
+        if prepare is not None:
+            resolved = prepare(on_batch, is_cancelled)
+            if resolved is None:
+                return []
+            state['stream_id'] = resolved
+        if is_cancelled():
+            return []
+        return _search_streams(stream_type, state['stream_id'],
+                               on_batch=on_batch, is_cancelled=is_cancelled)
+
+    return producer, state
+
+
+def _play_streams(stream_type, stream_id, meta_info=None, prepare=None):
     """Search add-ons for streams and play the user's choice.
 
     This is the standalone path (catalog browsing). The stream picker opens
-    immediately and fills in as each add-on answers, so the user can pick a
-    source without waiting for the slowest one. The TMDbHelper path uses
-    list_streams + resolve instead.
+    immediately — before any meta lookup or add-on answer — so the user gets
+    instant feedback and can pick a source as soon as one is available, instead
+    of waiting on a blank screen that still accepts clicks. The TMDbHelper path
+    uses list_streams + resolve instead.
     """
     if meta_info is None:
         meta_info = {}
 
-    xbmc.log('Stremio2Kodi: _play_streams: type={} id={} addon_idx={}'.format(
-        stream_type, stream_id, addon_idx), xbmc.LOGDEBUG)
+    xbmc.log('Stremio2Kodi: _play_streams: type={} id={}'.format(
+        stream_type, stream_id), xbmc.LOGDEBUG)
 
-    def producer(on_batch, is_cancelled):
-        return _search_streams(stream_type, stream_id, addon_idx=addon_idx,
-                               on_batch=on_batch, is_cancelled=is_cancelled)
-
+    producer, state = _stream_producer(stream_type, stream_id, prepare)
     selected = _choose_stream(producer=producer)
     if selected is None:
         xbmc.log('Stremio2Kodi: _play_streams: no stream selected for '
-                 'type={} id={}'.format(stream_type, stream_id),
+                 'type={} id={}'.format(stream_type, state['stream_id']),
                  xbmc.LOGDEBUG)
         return
 
     _resolve_and_play(selected, meta_info=meta_info,
-                      stream_type=stream_type, stream_id=stream_id)
+                      stream_type=stream_type, stream_id=state['stream_id'])
 
 
 def _resolve_and_play(stream, meta_info=None, stream_type=None, stream_id=None):
@@ -1905,19 +1935,19 @@ def list_streams(stream_type, stream_id, base_id=None, season=None,
     shipped player definition auto-selects (position 1) so TMDbHelper shows no
     second dialog. Cancelling emits an empty listing.
     """
-    # Stream id always comes from the meta (Stremio default behaviour).
+    # Stream id always comes from the meta (Stremio default behaviour); the
+    # lookup runs inside the dialog's worker so the picker opens instantly.
     meta_info = {}
-    meta = _resolve_meta(stream_type, base_id or stream_id, None, meta_info)
-    if meta:
-        if season is not None and episode is not None:
-            stream_id = _episode_stream_id(meta, season, episode) or stream_id
-        else:
-            stream_id = meta.get('id') or stream_id
 
-    def producer(on_batch, is_cancelled):
-        return _search_streams(stream_type, stream_id,
-                               on_batch=on_batch, is_cancelled=is_cancelled)
+    def prepare(on_batch, is_cancelled):
+        meta = _resolve_meta(stream_type, base_id or stream_id, None, meta_info)
+        if meta:
+            if season is not None and episode is not None:
+                return _episode_stream_id(meta, season, episode) or stream_id
+            return meta.get('id') or stream_id
+        return stream_id
 
+    producer, state = _stream_producer(stream_type, stream_id, prepare)
     selected = _choose_stream(producer=producer)
     if selected is None:
         xbmcplugin.endOfDirectory(HANDLE, succeeded=False)
@@ -1926,7 +1956,7 @@ def list_streams(stream_type, stream_id, base_id=None, season=None,
     _cache_streams([selected])
 
     # Fetch subtitles in the same pass so resolve can attach them as tracks.
-    _cache_subtitles(_search_subtitles(stream_type, stream_id)
+    _cache_subtitles(_search_subtitles(stream_type, state['stream_id'])
                      if _FETCH_SUBTITLES else [])
 
     url = build_url('resolve', idx='0')

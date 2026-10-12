@@ -112,6 +112,14 @@ msgctxt "#30041"
 msgid "Found {} stream{}"
 msgstr "{} stream{} encontrados"
 
+msgctxt "#30042"
+msgid "Filter by add-on"
+msgstr "Filtrar por add-on"
+
+msgctxt "#30043"
+msgid "All"
+msgstr "Todos"
+
 # -- Subtítulos --
 msgctxt "#30045"
 msgid "Searching subtitles..."

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.4] - 2026-10-12
+
+### Added
+- Stream dialog add-on filter: a right-hand panel lists `All` plus every add-on
+  that returned streams, so a large result set can be narrowed down to a single
+  add-on. The active filter is marked with a hollow box.
+
+### Fixed
+- Stream dialog now opens immediately: the meta lookup that resolves the stream
+  id runs inside the dialog's worker thread instead of before the dialog is
+  shown. Previously the add-on left a blank, still-clickable screen during the
+  meta request (standalone and TMDbHelper paths), so stray clicks could trigger
+  unwanted actions.
+- Stream dialog highlight: only the focused list shows the blue selection bar.
+  Moving focus to the add-on filter clears the stream list's highlight (and vice
+  versa); the active filter stays visible as a hollow box.
+
 ## [1.7.1] - 2026-10-12
 
 ### Added

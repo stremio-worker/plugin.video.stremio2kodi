@@ -11,6 +11,10 @@ and updates the list control directly, following the same pattern as
 item stops the worker. The picked stream is exposed as
 ``StreamSelectDialog.selected_stream``.
 
+A right-hand filter panel lists every add-on that returned streams ("all" plus
+one row per successful add-on) so a large result set can be narrowed down by
+add-on without waiting for the search to finish.
+
 The module is deliberately decoupled from ``main.py`` (no import) to avoid a
 circular dependency: callers pass in an ``item_factory`` and a ``sort_key``.
 """
@@ -31,6 +35,8 @@ _BACK_ACTIONS = (10, 92)
 _LIST = 100
 _TITLE = 2
 _STATUS = 3
+_FILTER = 200
+_FILTER_TITLE = 4
 
 # Localized string ids (kept in sync with strings.po)
 _ID_TITLE = 30030
@@ -38,6 +44,8 @@ _ID_NO_STREAMS = 30031
 _ID_SEARCHING = 30036
 _ID_FOUND_SEARCHING = 30040
 _ID_FOUND = 30041
+_ID_FILTER = 30042
+_ID_ALL = 30043
 
 
 def _L(string_id):
@@ -56,7 +64,10 @@ class StreamSelectDialog(xbmcgui.WindowXMLDialog):
         self._stop = threading.Event()
         self._monitor = xbmc.Monitor()
         self._thread = None
+        self._lock = threading.Lock()
         self._streams = []
+        self._filter = None          # None == show every add-on
+        self._filter_addons = []     # add-ons that returned >= 1 stream
         self._item_factory = None
         self._sort_key = None
         self._producer = None
@@ -87,6 +98,8 @@ class StreamSelectDialog(xbmcgui.WindowXMLDialog):
 
     def onInit(self):
         self._set_label(_TITLE, _L(self._title_id))
+        self._set_label(_FILTER_TITLE, _L(_ID_FILTER))
+        self._refresh_filter_control()
         if self._producer is not None:
             self._set_status(_L(_ID_SEARCHING))
             self._thread = threading.Thread(target=self._worker, daemon=True)
@@ -97,18 +110,95 @@ class StreamSelectDialog(xbmcgui.WindowXMLDialog):
     def onClick(self, control_id):
         if control_id == _LIST:
             self._select_current()
+        elif control_id == _FILTER:
+            self._apply_filter()
 
     def onAction(self, action):
         if action.getId() in _BACK_ACTIONS:
             self._request_close()
 
+    # --- filter ------------------------------------------------------------
+
+    def _register_addons_locked(self, streams):
+        """Add any unseen add-on names; caller must hold ``self._lock``."""
+        changed = False
+        for s in streams:
+            name = s.get('_addon')
+            if name and name not in self._filter_addons:
+                self._filter_addons.append(name)
+                changed = True
+        return changed
+
+    def _match_filter_locked(self, streams):
+        """Return the subset of ``streams`` matching the active filter."""
+        if self._filter is None:
+            return list(streams)
+        return [s for s in streams if s.get('_addon') == self._filter]
+
+    def _visible_locked(self):
+        """Return the streams matching the active filter (holds the lock)."""
+        return self._match_filter_locked(self._streams)
+
+    def _refresh_filter_control(self):
+        """Rebuild the add-on rows: 'All' first, then successful add-ons."""
+        try:
+            ctrl = self.getControl(_FILTER)
+        except Exception:
+            return
+        with self._lock:
+            addons = list(self._filter_addons)
+            current = self._filter
+        items = [xbmcgui.ListItem(_L(_ID_ALL))]
+        items.extend(xbmcgui.ListItem(name) for name in addons)
+        # Mark the active filter row so the skin can draw a hollow box around
+        # it even while the stream list has focus.
+        active_row = 0
+        if current is not None and current in addons:
+            active_row = addons.index(current) + 1
+        try:
+            items[active_row].setProperty('active', '1')
+        except Exception:
+            active_row = 0
+        try:
+            ctrl.reset()
+            ctrl.addItems(items)
+            ctrl.selectItem(active_row)
+        except Exception:
+            pass
+
+    def _apply_filter(self):
+        """Apply the filter row the user picked and refocus the stream list."""
+        try:
+            idx = self.getControl(_FILTER).getSelectedPosition()
+        except Exception:
+            return
+        with self._lock:
+            if idx == 0:
+                self._filter = None
+            elif 1 <= idx <= len(self._filter_addons):
+                self._filter = self._filter_addons[idx - 1]
+            else:
+                return
+            visible = self._visible_locked()
+        self._populate(visible)
+        self._refresh_filter_control()
+        try:
+            self.setFocusId(_LIST)
+        except Exception:
+            pass
+        self._set_status(self._status_text())
+
     # --- preloaded list ----------------------------------------------------
 
     def _show_preloaded(self):
-        if self._sort_key is not None:
-            self._streams.sort(key=self._sort_key)
+        with self._lock:
+            if self._sort_key is not None:
+                self._streams.sort(key=self._sort_key)
+            self._register_addons_locked(self._streams)
+            visible = self._visible_locked()
+        self._refresh_filter_control()
         self._loaded = True
-        self._populate(self._streams)
+        self._populate(visible)
         self._set_status(self._status_text())
 
     # --- worker ------------------------------------------------------------
@@ -131,34 +221,43 @@ class StreamSelectDialog(xbmcgui.WindowXMLDialog):
         """Append a freshly fetched batch to the list (worker thread)."""
         if self._stop.is_set() or not streams:
             return
-        self._streams.extend(streams)
-        try:
-            self.getControl(_LIST).addItems(
-                [self._build_item(s) for s in streams])
-        except Exception:
-            pass
+        with self._lock:
+            self._streams.extend(streams)
+            changed = self._register_addons_locked(streams)
+            visible = self._match_filter_locked(streams)
+        if changed:
+            self._refresh_filter_control()
+        if visible:
+            try:
+                self.getControl(_LIST).addItems(
+                    [self._build_item(s) for s in visible])
+            except Exception:
+                pass
         self._set_status(self._status_text())
 
     def _finalize(self):
         """Sort the complete list once and show the final status."""
+        with self._lock:
+            if self._sort_key is not None:
+                self._streams.sort(key=self._sort_key)
+            visible = self._visible_locked()
+            total = len(self._streams)
         focus = None
         try:
             pos = self.getControl(_LIST).getSelectedPosition()
-            if 0 <= pos < len(self._streams):
-                focus = self._streams[pos]
+            if 0 <= pos < len(visible):
+                focus = visible[pos]
         except Exception:
             pass
-        if self._sort_key is not None:
-            self._streams.sort(key=self._sort_key)
-        self._populate(self._streams)
+        self._populate(visible)
         if focus is not None:
             try:
-                self.getControl(_LIST).selectItem(self._streams.index(focus))
+                self.getControl(_LIST).selectItem(visible.index(focus))
             except Exception:
                 pass
         self._loaded = True
         self._set_status(self._status_text())
-        if not self._streams:
+        if not total:
             self._notify_no_streams()
             self._request_close()
 
@@ -169,8 +268,10 @@ class StreamSelectDialog(xbmcgui.WindowXMLDialog):
             pos = self.getControl(_LIST).getSelectedPosition()
         except Exception:
             return
-        if 0 <= pos < len(self._streams):
-            self.selected_stream = self._streams[pos]
+        with self._lock:
+            visible = self._visible_locked()
+        if 0 <= pos < len(visible):
+            self.selected_stream = visible[pos]
             self._request_close()
 
     def _request_close(self):
@@ -198,7 +299,8 @@ class StreamSelectDialog(xbmcgui.WindowXMLDialog):
             pass
 
     def _status_text(self):
-        count = len(self._streams)
+        with self._lock:
+            count = len(self._visible_locked())
         if self._loaded:
             return _L(_ID_FOUND).format(count, _plural(count))
         return _L(_ID_FOUND_SEARCHING).format(count, _plural(count))
