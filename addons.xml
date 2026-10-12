@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addons>
+<addon id="plugin.video.stremio2kodi"
+       name="Stremio2Kodi"
+       version="1.7.4"
+       provider-name="StremioToCode">
+    <requires>
+        <import addon="xbmc.python" version="3.0.0"/>
+        <import addon="inputstream.adaptive" version="19.0.0"/>
+    </requires>
+    <extension point="xbmc.python.pluginsource" library="main.py">
+        <provides>video</provides>
+    </extension>
+    <extension point="xbmc.service" library="service.py" start="startup"/>
+    <extension point="xbmc.addon.metadata">
+        <platform>all</platform>
+        <summary lang="en_GB">Stremio add-ons wrapper for Kodi</summary>
+        <summary lang="es_ES">Envoltorio de add-ons de Stremio para Kodi</summary>
+        <description lang="en_GB">Browse and stream content from Stremio add-ons within Kodi. Supports catalogs, streams, and integrates with TMDbHelper for metadata and search.</description>
+        <description lang="es_ES">Explora y reproduce contenido de add-ons de Stremio dentro de Kodi. Soporta catálogos, streams e integración con TMDbHelper para metadatos y búsqueda.</description>
+        <license>GPL-3.0-only</license>
+    </extension>
+</addon>
+<addon id="repository.stremio"
+       name="Stremio Repository"
+       version="1.0.0"
+       provider-name="StremioToCode">
+    <extension point="xbmc.addon.repository" name="Stremio Repository">
+        <dir>
+            <info compressed="false">https://raw.githubusercontent.com/stremio-worker/plugin.video.stremio2kodi/repo/addons.xml</info>
+            <checksum>https://raw.githubusercontent.com/stremio-worker/plugin.video.stremio2kodi/repo/addons.xml.md5</checksum>
+            <datadir>https://raw.githubusercontent.com/stremio-worker/plugin.video.stremio2kodi/repo/</datadir>
+        </dir>
+    </extension>
+    <extension point="xbmc.addon.metadata">
+        <platform>all</platform>
+        <summary lang="en_GB">Stremio add-on repository for Kodi</summary>
+        <summary lang="es_ES">Repositorio de add-ons de Stremio para Kodi</summary>
+        <description lang="en_GB">Official repository for Stremio2Kodi. Install and receive automatic updates for the Stremio2Kodi video add-on directly from Kodi.</description>
+        <description lang="es_ES">Repositorio oficial de Stremio2Kodi. Instala y recibe actualizaciones automáticas del add-on de vídeo Stremio2Kodi directamente desde Kodi.</description>
+        <license>GPL-3.0-only</license>
+        <assets>
+            <icon>icon.jpeg</icon>
+            <fanart>fanart.jpeg</fanart>
+        </assets>
+    </extension>
+</addon>
+</addons>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="repository.stremio"
+       name="Stremio Repository"
+       version="1.0.0"
+       provider-name="StremioToCode">
+    <extension point="xbmc.addon.repository" name="Stremio Repository">
+        <dir>
+            <info compressed="false">https://raw.githubusercontent.com/stremio-worker/plugin.video.stremio2kodi/repo/addons.xml</info>
+            <checksum>https://raw.githubusercontent.com/stremio-worker/plugin.video.stremio2kodi/repo/addons.xml.md5</checksum>
+            <datadir>https://raw.githubusercontent.com/stremio-worker/plugin.video.stremio2kodi/repo/</datadir>
+        </dir>
+    </extension>
+    <extension point="xbmc.addon.metadata">
+        <platform>all</platform>
+        <summary lang="en_GB">Stremio add-on repository for Kodi</summary>
+        <summary lang="es_ES">Repositorio de add-ons de Stremio para Kodi</summary>
+        <description lang="en_GB">Official repository for Stremio2Kodi. Install and receive automatic updates for the Stremio2Kodi video add-on directly from Kodi.</description>
+        <description lang="es_ES">Repositorio oficial de Stremio2Kodi. Instala y recibe actualizaciones automáticas del add-on de vídeo Stremio2Kodi directamente desde Kodi.</description>
+        <license>GPL-3.0-only</license>
+        <assets>
+            <icon>icon.jpeg</icon>
+            <fanart>fanart.jpeg</fanart>
+        </assets>
+    </extension>
+</addon>
